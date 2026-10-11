@@ -1,0 +1,15 @@
+# personal data: the organisation's exports contain names, e-mail addresses and phone numbers of contact persons
+data/CRM_Export.xlsx
+data/Planned_Culture.csv
+
+# public reference data, downloaded again automatically on the first run
+data/external/
+data/cache/
+
+# python environment and tool caches
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.mypy_cache/
+.pytest_cache/

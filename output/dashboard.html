@@ -1,0 +1,570 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scholen Den Haag</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root {
+    color-scheme: light;
+    --page: #f9f9f7;
+    --surface: #fcfcfb;
+    --surface-raised: #ffffff;
+    --text-primary: #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted: #6b6a65;
+    --hairline: #e1e0d9;
+    --border: rgba(11, 11, 11, 0.10);
+    --accent: #2a78d6;
+    --series-ok: #2a78d6;
+    --series-flag: #eb6834;
+    --ring: #ffffff;
+    --flag-wash: rgba(235, 104, 52, 0.10);
+    --hover-wash: rgba(11, 11, 11, 0.05);
+    --selected-wash: rgba(42, 120, 214, 0.10);
+    --tile-filter: none;
+    --seq-0: #a3a29b;
+    --seq-1: #86b6ef;
+    --seq-2: #3987e5;
+    --seq-3: #1c5cab;
+    --seq-4: #0d366b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --page: #0d0d0d;
+      --surface: #1a1a19;
+      --surface-raised: #222220;
+      --text-primary: #f0efec;
+      --text-secondary: #c3c2b7;
+      --text-muted: #9a9890;
+      --hairline: #2c2c2a;
+      --border: rgba(255, 255, 255, 0.10);
+      --accent: #3987e5;
+      --series-ok: #3987e5;
+      --series-flag: #d95926;
+      --ring: #1a1a19;
+      --flag-wash: rgba(217, 89, 38, 0.16);
+      --hover-wash: rgba(255, 255, 255, 0.06);
+      --selected-wash: rgba(57, 135, 229, 0.16);
+      --tile-filter: invert(1) hue-rotate(180deg) brightness(0.85) contrast(0.9);
+      --seq-0: #5f5e59;
+      --seq-1: #184f95;
+      --seq-2: #2a78d6;
+      --seq-3: #6da7ec;
+      --seq-4: #b7d3f6;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --page: #0d0d0d;
+    --surface: #1a1a19;
+    --surface-raised: #222220;
+    --text-primary: #f0efec;
+    --text-secondary: #c3c2b7;
+    --text-muted: #9a9890;
+    --hairline: #2c2c2a;
+    --border: rgba(255, 255, 255, 0.10);
+    --accent: #3987e5;
+    --series-ok: #3987e5;
+    --series-flag: #d95926;
+    --ring: #1a1a19;
+    --flag-wash: rgba(217, 89, 38, 0.16);
+    --hover-wash: rgba(255, 255, 255, 0.06);
+    --selected-wash: rgba(57, 135, 229, 0.16);
+    --tile-filter: invert(1) hue-rotate(180deg) brightness(0.85) contrast(0.9);
+    --seq-0: #5f5e59;
+    --seq-1: #184f95;
+    --seq-2: #2a78d6;
+    --seq-3: #6da7ec;
+    --seq-4: #b7d3f6;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--page);
+    color: var(--text-primary);
+    font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+    display: flex;
+    flex-direction: column;
+  }
+
+  header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 20px;
+    padding: 10px 16px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--hairline);
+  }
+  header h1 { font-size: 16px; font-weight: 600; margin: 0; }
+  .count { color: var(--text-secondary); }
+  .legend { display: flex; gap: 6px; flex-wrap: wrap; }
+  .legend button {
+    display: inline-flex; align-items: center; gap: 6px;
+    font: inherit; color: var(--text-primary);
+    background: transparent; border: 1px solid var(--border); border-radius: 999px;
+    padding: 3px 10px; cursor: pointer;
+  }
+  .legend button[aria-pressed="false"] { color: var(--text-muted); opacity: 0.6; }
+  .legend button:hover { background: var(--hover-wash); }
+  .swatch { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--series-ok); background: var(--series-ok); }
+  .swatch.flag { background: var(--series-flag); border: 2px dashed var(--text-primary); }
+  .spacer { flex: 1; }
+  .toolbar { flex-basis: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+  .toolbar-label { color: var(--text-secondary); font-size: 12px; }
+  .mode { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .mode button {
+    font: inherit; font-size: 13px; color: var(--text-primary); background: transparent;
+    border: 0; border-right: 1px solid var(--border); padding: 4px 10px; cursor: pointer;
+  }
+  .mode button:last-child { border-right: 0; }
+  .mode button:hover { background: var(--hover-wash); }
+  .mode button[aria-pressed="true"] { background: var(--selected-wash); font-weight: 600; }
+  .legend .chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 4px; font-size: 13px; }
+  .legend .note { color: var(--text-muted); font-size: 12px; }
+  .swatch.hollow { background: transparent; border: 2px solid var(--text-muted); }
+  .dataset { color: var(--text-muted); font-size: 12px; }
+  .btn {
+    font: inherit; font-weight: 500; color: #ffffff; background: var(--accent);
+    border: 0; border-radius: 8px; padding: 6px 12px; cursor: pointer;
+  }
+  .btn:hover { filter: brightness(1.08); }
+  .btn.ghost { color: var(--text-primary); background: transparent; border: 1px solid var(--border); }
+
+  main { flex: 1; display: flex; min-height: 0; }
+  #map { flex: 1; min-width: 0; background: var(--surface); }
+  aside {
+    width: 400px; max-width: 45vw;
+    display: flex; flex-direction: column; min-height: 0;
+    background: var(--surface); border-left: 1px solid var(--hairline);
+  }
+  .panel-head { padding: 12px 16px 8px; border-bottom: 1px solid var(--hairline); }
+  .search {
+    width: 100%; font: inherit; color: var(--text-primary);
+    background: var(--surface-raised); border: 1px solid var(--border); border-radius: 8px;
+    padding: 7px 10px;
+  }
+  .panel-body { flex: 1; overflow-y: auto; }
+
+  .list { list-style: none; margin: 0; padding: 4px 0; }
+  .list li {
+    display: grid; grid-template-columns: 14px 1fr; gap: 10px; align-items: start;
+    padding: 8px 16px; cursor: pointer; border-bottom: 1px solid var(--hairline);
+  }
+  .list li:hover { background: var(--hover-wash); }
+  .list li .dot { margin-top: 4px; }
+  .list .name { font-weight: 500; }
+  .list .sub { color: var(--text-secondary); font-size: 12px; }
+  .list .unmapped-title { padding: 12px 16px 4px; color: var(--text-muted); font-size: 12px; cursor: default; display: block; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--series-ok); }
+  .dot.flag { background: var(--series-flag); outline: 2px dashed var(--text-primary); outline-offset: 1px; }
+  .dot.none { background: transparent; border: 2px solid var(--text-muted); }
+
+  .detail { padding: 12px 16px 24px; }
+  .detail h2 { font-size: 16px; margin: 8px 0 2px; }
+  .detail .uid { color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+  .quality {
+    margin: 12px 0; padding: 10px 12px; border-radius: 8px;
+    background: var(--flag-wash); border-left: 3px solid var(--series-flag);
+  }
+  .quality strong { display: block; margin-bottom: 4px; }
+  .quality ul { margin: 0; padding-left: 18px; }
+  .certain { margin: 12px 0; color: var(--text-secondary); }
+  dl { display: grid; grid-template-columns: minmax(120px, 42%) 1fr; gap: 0; margin: 0; }
+  dt, dd { padding: 6px 0; border-bottom: 1px solid var(--hairline); margin: 0; }
+  dt { color: var(--text-secondary); font-size: 12px; padding-right: 10px; overflow-wrap: anywhere; }
+  dd { overflow-wrap: anywhere; }
+  dd.empty { color: var(--text-muted); }
+  dd a { color: var(--accent); }
+
+  .leaflet-tooltip { font: 13px/1.35 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .leaflet-container { font: inherit; }
+  .leaflet-tile-pane { filter: var(--tile-filter); }
+
+  #drop {
+    position: fixed; inset: 0; display: none; align-items: center; justify-content: center;
+    background: rgba(42, 120, 214, 0.18); border: 3px dashed var(--accent);
+    font-size: 18px; font-weight: 600; color: var(--text-primary); z-index: 2000; pointer-events: none;
+  }
+  #drop.show { display: flex; }
+  #toast {
+    position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%);
+    background: var(--text-primary); color: var(--surface); padding: 8px 14px; border-radius: 8px;
+    display: none; z-index: 2001; max-width: calc(100vw - 32px);
+  }
+
+  @media (max-width: 720px) {
+    main { flex-direction: column; }
+    #map { flex: none; height: 55vh; }
+    aside { width: 100%; max-width: none; flex: 1; border-left: 0; border-top: 1px solid var(--hairline); }
+    header { gap: 8px 12px; }
+    .spacer { display: none; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Scholen Den Haag</h1>
+  <span class="count" id="count"></span>
+  <span class="spacer"></span>
+  <span class="dataset" id="dataset"></span>
+  <input type="file" id="file" accept=".xlsx,.xls,.csv" hidden>
+  <button type="button" class="btn" id="open">Open dataset (.xlsx)</button>
+  <div class="toolbar">
+    <span class="toolbar-label" id="mode-label">Kleur</span>
+    <div class="mode" id="mode" role="group" aria-labelledby="mode-label"></div>
+    <div class="legend" id="legend"></div>
+  </div>
+</header>
+<main>
+  <div id="map" role="region" aria-label="Kaart met scholen"></div>
+  <aside>
+    <div class="panel-head">
+      <input class="search" id="search" type="search" placeholder="Zoek school, adres, code of wijk…" aria-label="Zoek school">
+    </div>
+    <div class="panel-body" id="panel"></div>
+  </aside>
+</main>
+<div id="drop">Laat het xlsx-bestand los om het te laden</div>
+<div id="toast" role="status"></div>
+
+<script>
+const EMBEDDED = {"columns": ["UNIEK_ID", "BEVOEGD_GEZAG_NUMMER", "BEVOEGD_GEZAG_NAAM", "INSTELLINGSCODE", "VESTIGINGSCODE", "VESTIGINGSNAAM", "STRAATNAAM", "HUISNUMMER-TOEVOEGING", "POSTCODE", "PLAATSNAAM", "GEMEENTENUMMER", "GEMEENTENAAM", "DENOMINATIE", "TELEFOONNUMMER", "INTERNETADRES", "STRAATNAAM CORRESPONDENTIEADRES", "HUISNUMMER-TOEVOEGING CORRESPONDENTIEADRES", "POSTCODE CORRESPONDENTIEADRES", "PLAATSNAAM CORRESPONDENTIEADRES", "STADSDEEL", "WIJK", "DATA_KWALITEIT", "ACHTERSTANDSSCORE_2025", "ACHTERSTANDSSCORE_2026_VOORLOPIG", "LATITUDE", "LONGITUDE"], "rows": [["DH-0001", "20281", "Stichting Lucas Onderwijs", "03PY", "03PY00", "BaO Aquamarijn", "Donker Curtiusstraat", "4", "2555 XW", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Rooms-Katholiek", "0703232483", "www.kcaquamarijn.nl", "Donker Curtiusstraat", "4", "2555 XW", "'S-GRAVENHAGE", "Loosduinen", "Waldeck", "", "30.91", "20.24", "52.063761", "4.250197"], ["DH-0002", "41226", "Stichting Monton", "04EN", "04EN00", "Montessori Basisschool Houtwijk", "Architect Berlagelaan", "125", "2552 ZE", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Algemeen bijzonder", "0703979792", "www.montessorischoolhoutwijk.nl", "Architect Berlagelaan", "125", "2552 ZE", "'S-GRAVENHAGE", "Loosduinen", "Loosduinen", "", "0.00", "0.27", "52.057731", "4.255572"], ["DH-0003", "31227", "Ver. Prot. Chr. Basisonderwijs 'Duinoordschool'", "04MG", "04MG00", "Duinoord-Basisschool Protestants Christelijk Onderwijs", "Prins Mauritslaan", "8", "2582 LR", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Protestants-Christelijk", "0703544323", "www.duinoordschool.nl", "Prins Mauritslaan", "8", "2582 LR", "'S-GRAVENHAGE", "Scheveningen", "Geuzen- en Statenkwartier", "", "0.00", "0.00", "52.093763", "4.279623"], ["DH-0004", "41226", "Stichting Monton", "04NS", "04NS00", "Christelijke Montessorischool De Abeel", "Abeelstraat", "30", "2565 XP", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Protestants-Christelijk", "0703607053", "www.montessori-cms.nl", "Abeelstraat", "30", "2565 XP", "'S-GRAVENHAGE", "Segbroek", "Bomen- en Bloemenbuurt", "", "0.00", "0.00", "52.077672", "4.268624"], ["DH-0005", "34932", "Stichting School met de Bijbel", "04ON", "04ON00", "Koningin Beatrixschool", "Saenredamstraat", "4", "2525 TN", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Protestants-Christelijk", "0703808494", "www.beatrixschool.info", "Saenredamstraat", "4", "2525 TN", "'S-GRAVENHAGE", "Centrum", "Schildersbuurt", "", "670.91", "92.79", "52.064369", "4.305449"], ["DH-0006", "20281", "Stichting Lucas Onderwijs", "04ZT", "04ZT00", "De Drie Linden", "2e Braamstraat", "5", "2563 HJ", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Rooms-Katholiek", "0703255286", "www.lucasonderwijs.nl/drielinden", "2e Braamstraat", "5", "2563 HJ", "'S-GRAVENHAGE", "Segbroek", "Valkenboskwartier", "", "269.62", "48.22", "52.072719", "4.269511"], ["DH-0007", "20281", "Stichting Lucas Onderwijs", "05HC", "05HC00", "Montessori Kindcentrum John F. Kennedy", "Gradaland", "5", "2591 HB", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Rooms-Katholiek", "0703853390", "www.kennedymontessori.nl", "Gradaland", "5", "2591 HB", "'S-GRAVENHAGE", "Haagse Hout", "Mariahoeve en Marlot", "", "0.00", "14.51", "52.097116", "4.363415"], ["DH-0008", "40928", "Laurentius Stichting voor Kathol. Primair Onderwijs", "05HD", "05HD00", "Rooms Katholieke Basisschool De Zuidwester", "Marterrade", "312", "2544 ME", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Rooms-Katholiek", "0703660484", "www.bsdezuidwester.nl", "Marterrade", "312", "2544 ME", "'S-GRAVENHAGE", "Escamp", "Bouwlust", "", "1122.89", "114.94", "52.045275", "4.257712"], ["DH-0009", "70176", "Stichting Christel. Onderwijs Haaglanden", "05OL", "05OL00", "Chr. Basisschool De Elout", "Copernicusstraat", "159", "2561 VT", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Protestants-Christelijk", "0703455056", "www.scoh.nl/elout", "Copernicusstraat", "159", "2561 VT", "'S-GRAVENHAGE", "Segbroek", "Valkenboskwartier", "", "84.39", "10.70", "52.076701", "4.276822"], ["DH-0010", "95681", "Schoolvereniging Wolters", "05VV", "05VV00", "Schoolvereniging Wolters", "Utenbroekestraat", "2", "2597 PH", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Algemeen bijzonder", "0703242630", "www.schoolverenigingwolters.nl", "Utenbroekestraat", "2", "2597 PH", "'S-GRAVENHAGE", "Haagse Hout", "Benoordenhout", "", "0.00", "0.00", "52.098849", "4.313591"], ["DH-0011", "95694", "Stichting Haagsche Schoolvereeniging", "05VW", "05VW00", "Basisschool van de Stichting Haagsche School Vereniging", "Nassaulaan", "26", "2514 JT", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Algemeen bijzonder", "0703638531", "www.hsvdenhaag.nl", "Nassaulaan", "26", "2514 JT", "'S-GRAVENHAGE", "Centrum", "Willemspark", "", "0.00", "0.00", "52.085756", "4.307926"], ["DH-0012", "46879", "Stichting 'Het Rijnlands Lyceum'", "05VX", "05VX00", "1e Ned Montessorischool", "Laan van Poot", "353", "2566 DA", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Algemeen bijzonder", "0715730910", "www.enms.nl", "Postbus", "486", "2240 AL", "WASSENAAR", "Segbroek", "Vogelwijk", "", "0.00", "0.00", "52.076662", "4.245339"], ["DH-0013", "95746", "Vereniging Montessorischool Waalsdorp", "05VY", "05VY00", "Montessorischool Waalsdorp", "Utenbroekestraat", "6", "2597 PH", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Algemeen bijzonder", "0703247420", "www.waalsdorp.nl", "Utenbroekestraat", "6", "2597 PH", "'S-GRAVENHAGE", "Haagse Hout", "Benoordenhout", "", "0.00", "0.00", "52.099283", "4.312825"], ["DH-0014", "95785", "Stichting Vrijescholen ZW Nederland", "05WB", "05WB00", "De Vrije School", "Abbenbroekweg", "7", "2597 NT", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Antroposofisch", "0703244300", "www.devrijeschooldenhaag.nl", "Waalsdorperweg", "12", "2597 JB", "'S-GRAVENHAGE", "Scheveningen", "Westbroekpark en Duttendel", "", "0.00", "0.00", "52.105685", "4.304491"], ["DH-0015", "42570", "Mantum onderwijs", "06ES", "06ES00", "Eben Haezerschool", "Paulus Buijsstraat", "51", "2582 CH", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Reformatorisch", "0703225228", "www.ehsdh-mantum.nl", "Paulus Buijsstraat", "51", "2582 CH", "'S-GRAVENHAGE", "Scheveningen", "Geuzen- en Statenkwartier", "", "0.00", "0.00", "52.096087", "4.276989"], ["DH-0016", "20281", "Stichting Lucas Onderwijs", "06KA", "06KA00", "Rooms Katholieke Basisschool De Parkiet", "Parkietlaan", "1", "2566 XT", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Rooms-Katholiek", "0703631369", "www.parkiet.org", "Parkietlaan", "1", "2566 XT", "'S-GRAVENHAGE", "Segbroek", "Vogelwijk", "", "0.00", "0.00", "52.081788", "4.261372"], ["DH-0017", "40928", "Laurentius Stichting voor Kathol. Primair Onderwijs", "06MV", "06MV00", "Rosa-School", "Nijkerklaan", "7", "2573 BA", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Rooms-Katholiek", "0703457726", "www.rosabasisschool.nl", "Postbus", "73978", "2507 AL", "'S-GRAVENHAGE", "Escamp", "Rustenburg en Oostbroek", "", "448.74", "39.90", "52.064307", "4.283897"], ["DH-0018", "72100", "Ver. Willem de Zwijgerschool voor Christelijk Onderwijs", "06UW", "06UW00", "Protestants Christelijke Basisschool Willem de Zwijger", "Gentsestraat", "124", "2587 HZ", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Protestants-Christelijk", "0703557484", "www.wdzscheveningen.nl", "Gentsestraat", "124", "2587 HZ", "'S-GRAVENHAGE", "Scheveningen", "Belgisch Park", "", "0.00", "0.00", "52.110118", "4.296128"], ["DH-0019", "40928", "Laurentius Stichting voor Kathol. Primair Onderwijs", "07AK", "07AK00", "Rooms Katholieke Basisschool De Buutplaats", "Hoefkade", "677", "2525 LE", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Rooms-Katholiek", "0703801982", "www.bsdebuutplaats.nl", "Hoefkade", "677", "2525 LE", "'S-GRAVENHAGE", "Centrum", "Schildersbuurt", "", "599.90", "44.81", "52.063567", "4.302789"], ["DH-0020", "20281", "Stichting Lucas Onderwijs", "07CQ", "07CQ00", "KC Koos Meinderts", "C.A. van Beverenstraat", "48", "2552 HW", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Algemeen bijzonder", "0703971756", "https://kckoosmeinderts.nl/", "C.A. van Beverenstraat", "48", "2552 HW", "'S-GRAVENHAGE", "Loosduinen", "Loosduinen", "", "114.28", "21.69", "52.050181", "4.244137"], ["DH-0021", "40928", "Laurentius Stichting voor Kathol. Primair Onderwijs", "07UO", "07UO00", "Rooms Katholieke Basisschool Petrus Donders", "Ambachtsgaarde", "5", "2542 ED", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Rooms-Katholiek", "0703671214", "www.petrusdondersschool.nl", "Ambachtsgaarde", "5", "2542 ED", "'S-GRAVENHAGE", "Escamp", "Bouwlust", "", "779.85", "89.76", "52.035506", "4.264644"], ["DH-0022", "70176", "Stichting Christel. Onderwijs Haaglanden", "07YO", "07YO00", "Basisschool Bavinck", "Acaciastraat", "141", "2565 JZ", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Protestants-Christelijk", "0703450369", "www.scoh.nl/bavinck", "Acaciastraat", "141", "2565 JZ", "'S-GRAVENHAGE", "Segbroek", "Bomen- en Bloemenbuurt", "", "0.00", "1.52", "52.077100", "4.269980"], ["DH-0023", "20281", "Stichting Lucas Onderwijs", "08NF", "08NF00", "Katholieke Basisschool De Jonge Wereld", "Den Helderstraat", "250", "2547 ST", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Rooms-Katholiek", "0704480310", "www.nldata.nl/djwereld", "Den Helderstraat", "250", "2547 ST", "'S-GRAVENHAGE", "Escamp", "Leyenburg", "", "232.97", "37.46", "52.064026", "4.265598"], ["DH-0024", "20281", "Stichting Lucas Onderwijs", "08QB", "08QB00", "Basisschool Grote Beer", "Guntersteinweg", "60", "2531 JZ", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Rooms-Katholiek", "0703947173", "www.nldata.nl/grotebeer", "Guntersteinweg", "60", "2531 JZ", "'S-GRAVENHAGE", "Escamp", "Moerwijk", "", "879.28", "93.56", "52.045065", "4.297775"], ["DH-0025", "20281", "Stichting Lucas Onderwijs", "08ZU", "08ZU00", "Carolusschool", "Westeinde", "103-A", "2512 GW", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Rooms-Katholiek", "0703801420", "www.nldata.nl/carolus", "Westeinde", "103-A", "2512 GW", "'S-GRAVENHAGE", "Centrum", "Centrum", "", "440.57", "59.55", "52.076442", "4.302328"], ["DH-0026", "20281", "Stichting Lucas Onderwijs", "09WY", "09WY00", "KC Toermalijn", "Weimarstraat", "300", "2562 HS", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Rooms-Katholiek", "0703648681", "https://kctoermalijn.nl/", "Beeklaan", "184", "2562 AP", "'S-GRAVENHAGE", "Segbroek", "Valkenboskwartier", "", "255.22", "18.90", "52.073658", "4.277430"], ["DH-0027", "20281", "Stichting Lucas Onderwijs", "13EK", "13EK00", "Onze Wereld", "Brandtstraat", "87", "2572 CC", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Rooms-Katholiek", "0703459300", "www.onzewereld.net", "Brandtstraat", "87", "2572 CC", "'S-GRAVENHAGE", "Centrum", "Transvaalkwartier", "", "1995.06", "151.90", "52.066814", "4.290655"], ["DH-0028", "20281", "Stichting Lucas Onderwijs", "13JV", "13JV00", "Paschalisschool", "Bisschopstraat", "3", "2596 XH", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Rooms-Katholiek", "0703281557", "www.nldata.nl/paschalis", "Bisschopstraat", "3", "2596 XH", "'S-GRAVENHAGE", "Haagse Hout", "Benoordenhout", "", "0.00", "0.00", "52.091489", "4.322243"], ["DH-0029", "20281", "Stichting Lucas Onderwijs", "13OW", "13OW00", "IC Basisschool Statenkwartier", "Van Beverningkstraat", "29", "2582 VB", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Rooms-Katholiek", "0703553805", "www.nldata.nl/statenkwartier", "Postbus", "17120", "2502 CC", "'S-GRAVENHAGE", "Scheveningen", "Geuzen- en Statenkwartier", "", "0.00", "0.00", "52.091719", "4.272642"], ["DH-0030", "20281", "Stichting Lucas Onderwijs", "13TA", "13TA00", "Kindcentrum Bamboe", "Bentelostraat", "53", "2545 NV", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Rooms-Katholiek", "0703662011", "www.kindcentrumbamboe.nl", "Bentelostraat", "53", "2545 NV", "'S-GRAVENHAGE", "Escamp", "Morgenstond", "", "797.34", "83.43", "52.046540", "4.276536"], ["DH-0031", "20281", "Stichting Lucas Onderwijs", "13WM", "13WM00", "Jeroen", "Guido Gezellestraat", "51", "2524 CK", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Rooms-Katholiek", "0703939493", "www.nldata.nl/jeroen", "Guido Gezellestraat", "51", "2524 CK", "'S-GRAVENHAGE", "Laak", "Laakkwartier en Spoorwijk", "", "454.90", "64.94", "52.053971", "4.316178"], ["DH-0032", "20281", "Stichting Lucas Onderwijs", "13ZY", "13ZY00", "De Regenboog", "Linnaeusstraat", "12", "2522 GR", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Rooms-Katholiek", "0703905049", "www.nldata.nl/regenboog", "Linnaeusstraat", "12", "2522 GR", "'S-GRAVENHAGE", "Laak", "Laakkwartier en Spoorwijk", "", "661.28", "132.03", "52.059116", "4.330147"], ["DH-0033", "95694", "Stichting Haagsche Schoolvereeniging", "14DG", "14DG00", "Willemspark", "Frederikstraat", "28", "2514 LK", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Rooms-Katholiek", "0703464038", "www.willemsparkschooldenhaag.nl", "Frederikstraat", "28", "2514 LK", "'S-GRAVENHAGE", "Centrum", "Willemspark", "", "0.00", "0.00", "52.087247", "4.310192"], ["DH-0034", "20281", "Stichting Lucas Onderwijs", "15TL", "15TL00", "Het Lichtbaken", "Georges Bizetstraat", "21", "2551 ZC", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Rooms-Katholiek", "0703239522", "www.nldata.nl/hetlichtbaken", "Georges Bizetstraat", "21", "2551 ZC", "'S-GRAVENHAGE", "Loosduinen", "Waldeck", "", "257.61", "37.02", "52.059213", "4.241766"], ["DH-0035", "20281", "Stichting Lucas Onderwijs", "15VU", "15VU00", "Basisschool 't Palet", "Vaillantlaan", "230", "2526 HR", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Rooms-Katholiek", "0703803632", "www.paletnet.nl", "Vaillantlaan", "230", "2526 HR", "'S-GRAVENHAGE", "Centrum", "Schildersbuurt", "", "2281.99", "191.52", "52.067493", "4.303686"], ["DH-0036", "20281", "Stichting Lucas Onderwijs", "15XZ", "15XZ00", "Kindcentrum Speleon", "'s-Gravenzandelaan", "262", "2512 JT", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Rooms-Katholiek", "0704023522", "www.kcspeleon.nl", "Postbus", "71738", "2507 BH", "'S-GRAVENHAGE", "Centrum", "Schildersbuurt", "", "320.84", "39.34", "52.070378", "4.295037"], ["DH-0037", "20281", "Stichting Lucas Onderwijs", "15ZZ", "15ZZ00", "Diamant", "Diamanthorst", "181-A", "2592 GD", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Rooms-Katholiek", "0703859839", "www.scolucas.nl/vuurvlinder", "Diamanthorst", "181-A", "2592 GD", "'S-GRAVENHAGE", "Haagse Hout", "Mariahoeve en Marlot", "Volgens RIO is het lesgebouw van 15ZZ00: Diamanthorst 10 (2592GH); dit adres staat niet in RIO; Adres verschilt tussen bronnen: DUO Diamanthorst 181-A (2592GD) / CRM Diamanthorst 181-A (2592GH) / Planned Culture Diamanthorst 181-A (2592GD)", "177.06", "31.58", "52.094161", "4.356171"], ["DH-0038", "20281", "Stichting Lucas Onderwijs", "16DA", "16DA00", "Liduina", "Amalia van Solmsstraat", "157", "2595 TA", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Rooms-Katholiek", "0703859922", "www.liduinabasisschool.nl", "Amalia van Solmsstraat", "157", "2595 TA", "'S-GRAVENHAGE", "Haagse Hout", "Bezuidenhout", "", "0.00", "0.00", "52.079998", "4.339126"], ["DH-0039", "20281", "Stichting Lucas Onderwijs", "16FS", "16FS00", "De Triangel", "Mr. de Bruinplein", "3", "2515 BZ", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Rooms-Katholiek", "0703894072", "www.triangeldenhaag.nl", "Mr. de Bruinplein", "3", "2515 BZ", "'S-GRAVENHAGE", "Centrum", "Schildersbuurt", "", "919.62", "108.54", "52.067710", "4.314696"], ["DH-0040", "70176", "Stichting Christel. Onderwijs Haaglanden", "16WH", "16WH00", "Kindcentrum Vroondaal", "Madepolderweg", "76-78", "2553 EG", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Protestants-Christelijk", "0707900120", "www.kindcentrumvroondaal.nl", "Madepolderweg", "76-78", "2553 EG", "'S-GRAVENHAGE", "Loosduinen", "Kraayenstein en Vroondaal", "", "0.00", "0.00", "52.038252", "4.226184"], ["DH-0041", "70176", "Stichting Christel. Onderwijs Haaglanden", "16XN", "16XN00", "Prof Mr A Anema Basisschool", "Eindstede", "4", "2543 BL", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Protestants-Christelijk", "0703669672", "www.anemaschool.nl", "Eindstede", "4", "2543 BL", "'S-GRAVENHAGE", "Escamp", "Bouwlust", "", "1084.69", "94.27", "52.040464", "4.263580"], ["DH-0042", "70176", "Stichting Christel. Onderwijs Haaglanden", "16ZP", "16ZP00", "Ds W E Den Hertog School", "Luxemburgstraat", "7", "2552 RA", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Protestants-Christelijk", "0703979206", "www.wedenhertogschool.nl", "Luxemburgstraat", "7", "2552 RA", "'S-GRAVENHAGE", "Loosduinen", "Loosduinen", "", "91.37", "25.61", "52.053287", "4.237981"], ["DH-0043", "41572", "'De Haagse Scholen', stg. voor primair & spec. openb. onderw", "17EK", "17EK00", "De Kleine Keizer", "Alphons Diepenbrockhof", "79", "2551 KK", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Openbaar", "0703972832", "www.dekleinekeizer.nl", "Alphons Diepenbrockhof", "79", "2551 KK", "'S-GRAVENHAGE", "Loosduinen", "Waldeck", "", "237.80", "50.08", "52.059077", "4.231427"], ["DH-0044", "41572", "'De Haagse Scholen', stg. voor primair & spec. openb. onderw", "17EK", "17EK01", "De Kleine Keizer", "Loosduinse Uitleg", "10", "2553 AZ", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Openbaar", "0703979256", "www.dekleinekeizer.nl", "Loosduinse Uitleg", "10", "2553 AZ", "'S-GRAVENHAGE", "Loosduinen", "Loosduinen", "", "155.66", "29.32", "52.052259", "4.233868"], ["DH-0045", "41572", "'De Haagse Scholen', stg. voor primair & spec. openb. onderw", "17EU", "17EU00", "Basisschool Archipel", "Atjehstraat", "31", "2585 VG", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Openbaar", "0703508027", "www.archipelschool.nl", "Atjehstraat", "31", "2585 VG", "'S-GRAVENHAGE", "Centrum", "Archipelbuurt", "", "0.00", "0.00", "52.092745", "4.304927"], ["DH-0046", "41572", "'De Haagse Scholen', stg. voor primair & spec. openb. onderw", "17FE", "17FE00", "Dalton KC Helen Parkhurst", "Baambruggestraat", "2-4", "2546 SK", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Openbaar", "0703664493", "https://www.daltonkc-helenparkhurst.nl/", "Baambruggestraat", "2-4", "2546 SK", "'S-GRAVENHAGE", "Escamp", "Leyenburg", "", "420.27", "29.95", "52.057281", "4.268571"], ["DH-0047", "41572", "'De Haagse Scholen', stg. voor primair & spec. openb. onderw", "17FN", "17FN00", "De Spoorzoeker", "Busken Huetstraat", "22-24", "2524 TT", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Openbaar", "0703944997", "", "Busken Huetstraat", "22-24", "2524 TT", "'S-GRAVENHAGE", "Laak", "Laakkwartier en Spoorwijk", "", "324.52", "37.14", "52.050651", "4.312264"], ["DH-0048", "41572", "'De Haagse Scholen', stg. voor primair & spec. openb. onderw", "17FV", "17FV00", "Obs Dr Willem Drees", "Bresterstraat", "15", "2523 XC", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Openbaar", "0703937689", "www.wdrees.nl", "Bresterstraat", "15", "2523 XC", "'S-GRAVENHAGE", "Laak", "Laakkwartier en Spoorwijk", "", "337.06", "42.02", "52.059464", "4.319301"], ["DH-0049", "41572", "'De Haagse Scholen', stg. voor primair & spec. openb. onderw", "17JE", "17JE00", "Basisschool Valkenbos Montessori-School", "Cederstraat", "29", "2565 JM", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Openbaar", "0703600377", "www.valkenbos.net", "Cederstraat", "29", "2565 JM", "'S-GRAVENHAGE", "Segbroek", "Bomen- en Bloemenbuurt", "", "0.00", "0.00", "52.077471", "4.268921"], ["DH-0050", "41572", "'De Haagse Scholen', stg. voor primair & spec. openb. onderw", "17MC", "17MC00", "Basisschool Bohemen Kijkduin", "Daltonplantsoen", "6", "2555 SB", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Openbaar", "0703681338", "www.bohemenkijkduinschool.nl", "Daltonplantsoen", "6", "2555 SB", "'S-GRAVENHAGE", "Loosduinen", "Bohemen en Meer en Bos", "", "0.00", "0.00", "52.069205", "4.240475"], ["DH-0051", "41572", "'De Haagse Scholen', stg. voor primair & spec. openb. onderw", "17MR", "17MR00", "Benoordenhout", "Dreibholtzstraat", "2-4", "2596 XG", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Openbaar", "0703242976", "www.obsbenoordenhout.nl", "Dreibholtzstraat", "2-4", "2596 XG", "'S-GRAVENHAGE", "Haagse Hout", "Benoordenhout", "", "0.00", "0.00", "52.092696", "4.321147"], ["DH-0052", "41572", "'De Haagse Scholen', stg. voor primair & spec. openb. onderw", "17NF", "17NF00", "De Baanbreker", "Elboogstraat", "68", "2516 PV", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Openbaar", "0703995406", "www.baanbreker.info", "Elboogstraat", "68", "2516 PV", "'S-GRAVENHAGE", "Laak", "Laakkwartier en Spoorwijk", "", "291.50", "21.95", "52.066957", "4.332230"], ["DH-0053", "41572", "'De Haagse Scholen', stg. voor primair & spec. openb. onderw", "17NQ", "17NQ00", "P.C. Hooft-School", "Escamplaan", "65", "2547 GA", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Openbaar", "0703236232", "www.pchooftschool.net", "Escamplaan", "65", "2547 GA", "'S-GRAVENHAGE", "Escamp", "Rustenburg en Oostbroek", "", "338.07", "47.59", "52.064557", "4.275966"], ["DH-0054", "70176", "Stichting Christel. Onderwijs Haaglanden", "17PB", "17PB00", "Christelijke Basisschool De Ark", "Maarsbergenstraat", "169-C", "2546 SP", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Protestants-Christelijk", "0703292952", "www.nldata.nl/deark", "Maarsbergenstraat", "169-C", "2546 SP", "'S-GRAVENHAGE", "Escamp", "Leyenburg", "", "432.13", "75.60", "52.056527", "4.270882"], ["DH-0055", "41572", "'De Haagse Scholen', stg. voor primair & spec. openb. onderw", "17PJ", "17PJ00", "Startpunt International", "Suze Robertsonstraat", "103", "2526 WS", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Openbaar", "0703803935", "www.obshetstartpunt.nl", "Suze Robertsonstraat", "103", "2526 WS", "'S-GRAVENHAGE", "Centrum", "Schildersbuurt", "", "475.98", "39.01", "52.065464", "4.311463"], ["DH-0056", "70176", "Stichting Christel. Onderwijs Haaglanden", "17PQ", "17PQ00", "Protestants Christelijke Basisschool Prinsehaghe", "Prinsegracht", "182", "2512 GG", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Protestants-Christelijk", "0703802098", "www.prinsehaghe.nl", "Prinsegracht", "182", "2512 GG", "'S-GRAVENHAGE", "Centrum", "Centrum", "", "373.86", "52.37", "52.072070", "4.301732"], ["DH-0057", "41572", "'De Haagse Scholen', stg. voor primair & spec. openb. onderw", "17PY", "17PY00", "Galvani-School", "Galvanistraat", "43", "2517 RA", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Openbaar", "0703607495", "www.galvanischool.nl", "Galvanistraat", "43", "2517 RA", "'S-GRAVENHAGE", "Scheveningen", "Duinoord", "", "0.00", "0.00", "52.080013", "4.278273"], ["DH-0058", "70176", "Stichting Christel. Onderwijs Haaglanden", "17QF", "17QF00", "Waalse Louise De Coligny School voor Christelijk Basisonderwijs", "Ametisthorst", "421", "2592 HN", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Protestants-Christelijk", "0703854949", "www.dewlc.nl", "Ametisthorst", "421", "2592 HN", "'S-GRAVENHAGE", "Haagse Hout", "Mariahoeve en Marlot", "Volgens RIO is het lesgebouw van 17QF00: Rooseboomstraat 10 (2593PB); dit adres staat niet in RIO", "220.93", "41.47", "52.094068", "4.361381"], ["DH-0059", "70176", "Stichting Christel. Onderwijs Haaglanden", "17RI", "17RI00", "Oranje Nassauschool voor Christelijk Basisonderwijs", "Weissenbruchstraat", "119", "2596 GD", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Protestants-Christelijk", "0703280647", "www.scoh.nl/nassau-o", "Weissenbruchstraat", "119", "2596 GD", "'S-GRAVENHAGE", "Haagse Hout", "Benoordenhout", "", "0.00", "0.00", "52.090984", "4.322893"], ["DH-0060", "70176", "Stichting Christel. Onderwijs Haaglanden", "17RV", "17RV00", "O G Heldringsch Christelijke Basis Onderwijs", "IJsvogelplein", "10", "2566 VS", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Protestants-Christelijk", "0703635403", "www.ogheldringschool.nl", "IJsvogelplein", "10", "2566 VS", "'S-GRAVENHAGE", "Segbroek", "Vogelwijk", "", "0.00", "0.00", "52.081440", "4.256323"], ["DH-0061", "70176", "Stichting Christel. Onderwijs Haaglanden", "17SI", "17SI00", "V Hoogstratensch Christelijk Basisonderwijs", "Spaarwaterstraat", "21", "2593 RM", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Protestants-Christelijk", "0703854972", "www.vanhoogstratenschool.nl", "Spaarwaterstraat", "21", "2593 RM", "'S-GRAVENHAGE", "Haagse Hout", "Bezuidenhout", "", "0.00", "15.53", "52.089029", "4.340361"], ["DH-0062", "70176", "Stichting Christel. Onderwijs Haaglanden", "17SU", "17SU00", "Chr Basisschool Comenius", "Colensostraat", "6", "2572 NR", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Protestants-Christelijk", "0703806700", "https://comeniusdenhaag.nl/", "Colensostraat", "6", "2572 NR", "'S-GRAVENHAGE", "Centrum", "Transvaalkwartier", "", "436.34", "40.89", "52.061443", "4.294383"], ["DH-0063", "70176", "Stichting Christel. Onderwijs Haaglanden", "17TD", "17TD00", "Da Costa School Christelijke Basisonderwijs", "Hollanderstraat", "21", "2517 HH", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Protestants-Christelijk", "0703451194", "www.scoh.nl/costa", "Hollanderstraat", "21", "2517 HH", "'S-GRAVENHAGE", "Scheveningen", "Duinoord", "", "0.00", "0.00", "52.084237", "4.282274"], ["DH-0064", "70176", "Stichting Christel. Onderwijs Haaglanden", "17TN", "17TN00", "kindcentrum Leyenburg kindcentrum voor opvang en christelijk onderwijs (0-12)", "Edamstraat", "2", "2547 VR", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Protestants-Christelijk", "0703251978", "www.kcleyenburg.nl", "Edamstraat", "2", "2547 VR", "'S-GRAVENHAGE", "Escamp", "Leyenburg", "", "484.08", "76.06", "52.060290", "4.265091"], ["DH-0065", "70176", "Stichting Christel. Onderwijs Haaglanden", "17TT", "17TT00", "Ds D.A. van den Boschschool voor Christelijk Basisonderwijs", "Erasmusweg", "68", "2532 CR", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Protestants-Christelijk", "0703948687", "www.vdboschschool.nl", "Erasmusweg", "68", "2532 CR", "'S-GRAVENHAGE", "Escamp", "Moerwijk", "", "733.16", "92.73", "52.052431", "4.304563"], ["DH-0066", "70176", "Stichting Christel. Onderwijs Haaglanden", "17TY", "17TY00", "P Oosterleeschool, school voor Christelijk Basisonderwijs", "Pieter Langendijkstraat", "81", "2533 TG", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Protestants-Christelijk", "0703801534", "www.oosterleeschool.nl", "Pieter Langendijkstraat", "81", "2533 TG", "'S-GRAVENHAGE", "Escamp", "Moerwijk", "Volgens RIO is het lesgebouw van 17TY00: Pieter Langendijkstraat 83 (2533TG); dit adres staat niet in RIO", "987.16", "146.51", "52.049204", "4.294717"], ["DH-0067", "70176", "Stichting Christel. Onderwijs Haaglanden", "17UD", "17UD00", "Dr J A Gerth V Wijksch voor Christelijk Basis Onderwijs", "Withuysstraat", "2", "2523 GW", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Protestants-Christelijk", "0703944056", "www.gerthvanwijkschool.nl", "Withuysstraat", "2", "2523 GW", "'S-GRAVENHAGE", "Laak", "Laakkwartier en Spoorwijk", "", "590.03", "77.56", "52.058715", "4.316682"], ["DH-0068", "70176", "Stichting Christel. Onderwijs Haaglanden", "17VA", "17VA00", "Christelijke Basisschool De Vliermeent", "Vlierboomstraat", "362", "2564 HT", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Protestants-Christelijk", "0703250130", "www.vliermeent.nl", "Vlierboomstraat", "362", "2564 HT", "'S-GRAVENHAGE", "Segbroek", "Vruchtenbuurt", "", "0.00", "0.00", "52.069703", "4.261158"], ["DH-0069", "70176", "Stichting Christel. Onderwijs Haaglanden", "17XC", "17XC00", "Ds Dj Karressch Christelijke Basisonderwijs", "Naarderstraat", "170", "2574 PK", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Protestants-Christelijk", "0703235886", "www.karresschool.nl", "Naarderstraat", "170", "2574 PK", "'S-GRAVENHAGE", "Escamp", "Rustenburg en Oostbroek", "", "254.66", "42.28", "52.064404", "4.275284"], ["DH-0070", "70176", "Stichting Christel. Onderwijs Haaglanden", "17YA", "17YA00", "Paul Krugersch voor Christelijk Basisonderwijs", "Fischerstraat", "133", "2572 PV", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Protestants-Christelijk", "0703888855", "www.nldata.nl/kruger", "Fischerstraat", "133", "2572 PV", "'S-GRAVENHAGE", "Centrum", "Transvaalkwartier", "", "324.24", "37.00", "52.065662", "4.295572"], ["DH-0071", "70176", "Stichting Christel. Onderwijs Haaglanden", "17YO", "17YO00", "Christelijke Basisschool De Ontmoeting", "Draaistraat", "16", "2516 KE", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Protestants-Christelijk", "0703995864", "www.nldata.nl/ontmoeting", "Draaistraat", "16", "2516 KE", "'S-GRAVENHAGE", "Laak", "Laakkwartier en Spoorwijk", "", "606.73", "68.98", "52.065322", "4.330729"], ["DH-0072", "70176", "Stichting Christel. Onderwijs Haaglanden", "17YY", "17YY00", "Jan V Nassauschool voor Protestants Christelijk Basisonderwijs", "Zaanstraat", "25", "2515 TM", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Protestants-Christelijk", "0708200183", "www.janvannassauschool.nl", "Zaanstraat", "25", "2515 TM", "'S-GRAVENHAGE", "Centrum", "Stationsbuurt", "", "334.89", "51.97", "52.074806", "4.326745"], ["DH-0073", "70176", "Stichting Christel. Onderwijs Haaglanden", "17ZH", "17ZH00", "Pr Ireneschool voor Christelijk Basisonderwijs", "Slicherstraat", "6", "2515 GE", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Protestants-Christelijk", "0703883716", "www.prinsesireneschooldenhaag.nl", "Slicherstraat", "6", "2515 GE", "'S-GRAVENHAGE", "Centrum", "Schildersbuurt", "", "408.64", "58.79", "52.070278", "4.314423"], ["DH-0074", "70176", "Stichting Christel. Onderwijs Haaglanden", "17ZM", "17ZM00", "Meester Schabergschool voor Christelijk Basisonderwijs", "Sirtemastraat", "400", "2513 XX", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Protestants-Christelijk", "0703644622", "www.schabergschool.nl", "Sirtemastraat", "400", "2513 XX", "'S-GRAVENHAGE", "Centrum", "Centrum", "Achterstandsscore CBS 2025 onbetrouwbaar (40 of minder leerlingen)", "76.70", "17.94", "52.075264", "4.298172"], ["DH-0075", "70176", "Stichting Christel. Onderwijs Haaglanden", "17ZS", "17ZS00", "Dr M M Den Hertogschool voor Christelijk Basis Onderwijs", "Amalia van Solmsstraat", "5", "2595 TA", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Protestants-Christelijk", "0703852552", "www.denhertogschool.nl", "Amalia van Solmsstraat", "5", "2595 TA", "'S-GRAVENHAGE", "Haagse Hout", "Bezuidenhout", "", "332.58", "49.99", "52.082017", "4.336400"], ["DH-0076", "70176", "Stichting Christel. Onderwijs Haaglanden", "17ZZ", "17ZZ00", "De Horizon Christelijke School voor Basisonderwijs", "Paets van Troostwijkstr", "93", "2522 DM", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Protestants-Christelijk", "0703993482", "www.nldata.nl/horizon", "Paets van Troostwijkstr", "93", "2522 DM", "'S-GRAVENHAGE", "Laak", "Laakkwartier en Spoorwijk", "", "417.36", "56.72", "52.058090", "4.330557"], ["DH-0077", "41572", "'De Haagse Scholen', stg. voor primair & spec. openb. onderw", "18AR", "18AR00", "Maria Montessorischool", "Zevenwoudenlaan", "197", "2548 NT", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Openbaar", "0703099335", "www.mmdenhaag.nl", "Zevenwoudenlaan", "197", "2548 NT", "'S-GRAVENHAGE", "Escamp", "Wateringse Veld", "", "9.71", "0.44", "52.033982", "4.293054"], ["DH-0078", "41572", "'De Haagse Scholen', stg. voor primair & spec. openb. onderw", "18PQ", "18PQ00", "Anne Frank Wereldschool", "Beresteinlaan", "267", "2542 JG", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Openbaar", "0703664406", "www.annefrankwereldschool.nl", "Beresteinlaan", "267", "2542 JG", "'S-GRAVENHAGE", "Escamp", "Bouwlust", "", "1354.56", "149.29", "52.040715", "4.254661"], ["DH-0079", "41572", "'De Haagse Scholen', stg. voor primair & spec. openb. onderw", "19LI", "19LI00", "De Zonnebloem", "Hyacinthweg", "5", "2565 RE", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Openbaar", "0703251503", "www.obszonnebloem.nl", "Hyacinthweg", "5", "2565 RE", "'S-GRAVENHAGE", "Segbroek", "Bomen- en Bloemenbuurt", "", "0.00", "0.00", "52.072737", "4.252799"], ["DH-0080", "41572", "'De Haagse Scholen', stg. voor primair & spec. openb. onderw", "19LY", "19LY00", "Annie MG Schmidtschool", "Jacob de Graefflaan", "10", "2517 JM", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Openbaar", "0703451265", "www.amgschmidtschool.nl", "Jacob de Graefflaan", "10", "2517 JM", "'S-GRAVENHAGE", "Scheveningen", "Zorgvliet", "", "0.00", "0.00", "52.087061", "4.282475"], ["DH-0081", "41572", "'De Haagse Scholen', stg. voor primair & spec. openb. onderw", "19LY", "19LY01", "Annie MG Schmidtschool", "Van Hoornbeekstraat", "5", "2582 RA", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Openbaar", "0703541460", "www.amgschmidtschool.nl", "Van Hoornbeekstraat", "5", "2582 RA", "'S-GRAVENHAGE", "Scheveningen", "Geuzen- en Statenkwartier", "", "0.00", "0.00", "52.095906", "4.282145"], ["DH-0082", "41572", "'De Haagse Scholen', stg. voor primair & spec. openb. onderw", "19MH", "19MH00", "De Klimop", "Cartesiusstraat", "2-4", "2562 SK", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Openbaar", "0703654086", "www.deklimopschool.nl", "Cartesiusstraat", "2-4", "2562 SK", "'S-GRAVENHAGE", "Segbroek", "Regentessekwartier", "", "406.38", "56.72", "52.074139", "4.285441"], ["DH-0083", "41572", "'De Haagse Scholen', stg. voor primair & spec. openb. onderw", "19MP", "19MP00", "De Kameleon", "Ketelstraat", "101", "2516 VN", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Openbaar", "0704152531", "www.obsdekameleon.nl", "Ketelstraat", "101", "2516 VN", "'S-GRAVENHAGE", "Laak", "Laakkwartier en Spoorwijk", "", "327.93", "51.14", "52.062629", "4.337412"], ["DH-0084", "41572", "'De Haagse Scholen', stg. voor primair & spec. openb. onderw", "19MU", "19MU00", "Openbare Basisschool Max Velthuijs", "Da Costastraat", "40", "2513 RP", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Openbaar", "0703655010", "www.maxvelthuijs.nu", "Da Costastraat", "40", "2513 RP", "'S-GRAVENHAGE", "Centrum", "Zeeheldenkwartier", "", "421.03", "55.31", "52.078368", "4.295696"], ["DH-0085", "41572", "'De Haagse Scholen', stg. voor primair & spec. openb. onderw", "19MZ", "19MZ00", "Openbare basisschool Houtwijk", "Mari Andriessenstraat", "42-44", "2552 KN", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Openbaar", "0702181375", "www.obshoutwijk.nl", "Mari Andriessenstraat", "42-44", "2552 KN", "'S-GRAVENHAGE", "Loosduinen", "Loosduinen", "", "825.67", "92.23", "52.054187", "4.248153"], ["DH-0086", "41572", "'De Haagse Scholen', stg. voor primair & spec. openb. onderw", "19NN", "19NN00", "Houtrustschool", "Nachtegaalplein", "19-A", "2566 JP", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Openbaar", "0703647549", "www.houtrustschool.nl", "Nachtegaalplein", "19-A", "2566 JP", "'S-GRAVENHAGE", "Segbroek", "Vogelwijk", "", "0.00", "0.00", "52.083534", "4.263086"], ["DH-0087", "41572", "'De Haagse Scholen', stg. voor primair & spec. openb. onderw", "19NQ", "19NQ00", "Openbare Basisschool De Gelderlandschool", "Nijkerklaan", "9", "2573 BA", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Openbaar", "0703459307", "www.gelderlandschool.nl", "Nijkerklaan", "9", "2573 BA", "'S-GRAVENHAGE", "Escamp", "Rustenburg en Oostbroek", "", "251.17", "44.15", "52.063950", "4.282749"], ["DH-0088", "41572", "'De Haagse Scholen', stg. voor primair & spec. openb. onderw", "19NT", "19NT00", "De Drentse Hoek", "Oosterhesselenstraat", "586", "2545 SL", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Openbaar", "0703661515", "www.obsdedrentsehoek.nl", "Oosterhesselenstraat", "586", "2545 SL", "'S-GRAVENHAGE", "Escamp", "Morgenstond", "", "418.16", "24.64", "52.046698", "4.271511"], ["DH-0089", "41572", "'De Haagse Scholen', stg. voor primair & spec. openb. onderw", "19NW", "19NW00", "Van Ostadeschool", "Van Ostadestraat", "245", "2526 EV", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Openbaar", "0703806773", "www.vanostadeschool.nl", "Van Ostadestraat", "245", "2526 EV", "'S-GRAVENHAGE", "Centrum", "Schildersbuurt", "", "938.85", "76.30", "52.066337", "4.305569"], ["DH-0090", "41572", "'De Haagse Scholen', stg. voor primair & spec. openb. onderw", "19NZ", "19NZ00", "Erasmusschool", "Ambachtsgaarde", "1", "2542 ED", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Openbaar", "0703097073", "www.obs-erasmus.nl", "Ambachtsgaarde", "1", "2542 ED", "'S-GRAVENHAGE", "Escamp", "Bouwlust", "", "1041.42", "85.61", "52.035781", "4.265150"], ["DH-0091", "41572", "'De Haagse Scholen', stg. voor primair & spec. openb. onderw", "19OC", "19OC00", "Openbare Basisschool Prins Willem Alexander", "Laakweg", "199", "2521 SG", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Openbaar", "0703991868", "", "Laakweg", "199", "2521 SG", "'S-GRAVENHAGE", "Laak", "Laakkwartier en Spoorwijk", "", "785.56", "81.51", "52.063285", "4.323031"], ["DH-0092", "41572", "'De Haagse Scholen', stg. voor primair & spec. openb. onderw", "19OQ", "19OQ00", "Springbok International", "Pretoriusstraat", "123", "2571 VD", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Openbaar", "0703458605", "www.obsdespringbok.nl", "Pretoriusstraat", "123", "2571 VD", "'S-GRAVENHAGE", "Centrum", "Transvaalkwartier", "", "1015.23", "138.58", "52.070112", "4.288242"], ["DH-0093", "41572", "'De Haagse Scholen', stg. voor primair & spec. openb. onderw", "19QD", "19QD00", "De Kleine Wereld", "Van Ruysbroekstraat", "7", "2531 TG", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Openbaar", "0704020188", "www.kleine-wereld.nl", "Van Ruysbroekstraat", "7", "2531 TG", "'S-GRAVENHAGE", "Escamp", "Moerwijk", "", "892.62", "88.67", "52.054917", "4.303972"], ["DH-0094", "20281", "Stichting Lucas Onderwijs", "19SG", "19SG00", "Nutsbasisschool Morgenstond", "Zweeloostraat", "61", "2545 VC", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Algemeen bijzonder", "0703663445", "www.nutsschoolmorgenstond.nl", "Zweeloostraat", "61", "2545 VC", "'S-GRAVENHAGE", "Escamp", "Morgenstond", "", "284.16", "29.44", "52.049388", "4.269940"], ["DH-0095", "41572", "'De Haagse Scholen', stg. voor primair & spec. openb. onderw", "19SI", "19SI00", "De La Reyschool", "De la Reyweg", "212", "2571 GH", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Openbaar", "0703617017", "www.delareyschool.nl", "De la Reyweg", "212", "2571 GH", "'S-GRAVENHAGE", "Centrum", "Transvaalkwartier", "", "8.62", "0.93", "52.066583", "4.287759"], ["DH-0096", "70176", "Stichting Christel. Onderwijs Haaglanden", "19TA", "19TA00", "Protestants Christelijke Basisschool De Vuurtoren", "Stevinstraat", "65-E", "2587 EB", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Protestants-Christelijk", "0703540031", "www.cbsdevuurtoren.nl", "Stevinstraat", "65-E", "2587 EB", "'S-GRAVENHAGE", "Scheveningen", "Scheveningen", "", "318.62", "54.14", "52.108416", "4.284527"], ["DH-0097", "20281", "Stichting Lucas Onderwijs", "19TM", "19TM00", "Nutsbasisschool M.M. Boldingh", "Verhulstplein", "21", "2517 SC", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Algemeen bijzonder", "0703450422", "www.nutsschoolboldingh.nl", "Verhulstplein", "21", "2517 SC", "'S-GRAVENHAGE", "Scheveningen", "Duinoord", "", "0.00", "0.00", "52.084346", "4.275973"], ["DH-0098", "41572", "'De Haagse Scholen', stg. voor primair & spec. openb. onderw", "19TO", "19TO00", "Het Volle Leven", "Rijslag", "17-23", "2587 BB", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Openbaar", "0703558454", "www.hetvolleleven.nl", "Rijslag", "17-23", "2587 BB", "'S-GRAVENHAGE", "Scheveningen", "Scheveningen", "", "0.00", "0.00", "52.107042", "4.285972"], ["DH-0099", "20281", "Stichting Lucas Onderwijs", "19UJ", "19UJ00", "Nutsbasisschool Laan van Poot", "Laan van Poot", "355", "2566 DA", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Algemeen bijzonder", "0703257547", "www.nutsschool.nl", "Laan van Poot", "355", "2566 DA", "'S-GRAVENHAGE", "Segbroek", "Vogelwijk", "", "0.00", "0.00", "52.076200", "4.243840"], ["DH-0100", "41572", "'De Haagse Scholen', stg. voor primair & spec. openb. onderw", "19UK", "19UK00", "Jan Ligthartschool", "Slicherstraat", "5-7", "2515 GE", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Openbaar", "0703882951", "www.janligthartschool.nl", "Slicherstraat", "5", "2515 GE", "'S-GRAVENHAGE", "Centrum", "Schildersbuurt", "", "385.84", "57.47", "52.070608", "4.314449"], ["DH-0101", "20281", "Stichting Lucas Onderwijs", "19VA", "19VA00", "Nutsbasisschool Bezuidenhout", "Merkusstraat", "19", "2593 TL", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Algemeen bijzonder", "0703851430", "www.kindcentrumbezuidenhout.nl", "Merkusstraat", "19", "2593 TL", "'S-GRAVENHAGE", "Haagse Hout", "Bezuidenhout", "", "0.00", "0.00", "52.087656", "4.341852"], ["DH-0102", "41572", "'De Haagse Scholen', stg. voor primair & spec. openb. onderw", "19VB", "19VB00", "De Wissel", "Steenwijklaan", "10", "2541 RL", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Openbaar", "0703663606", "", "Steenwijklaan", "10", "2541 RL", "'S-GRAVENHAGE", "Escamp", "Morgenstond", "", "1168.39", "137.92", "52.045454", "4.285794"], ["DH-0103", "70176", "Stichting Christel. Onderwijs Haaglanden", "19VH", "19VH00", "Protestants Christelijke Basisschool De Oranjeschool", "Westduinweg", "127", "2583 AA", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Protestants-Christelijk", "0703540457", "www.pcoranjeschool.nl", "Westduinweg", "127", "2583 AA", "'S-GRAVENHAGE", "Scheveningen", "Geuzen- en Statenkwartier", "", "416.33", "76.71", "52.095024", "4.269287"], ["DH-0104", "20281", "Stichting Lucas Onderwijs", "19VL", "19VL00", "Nutsbasisschool Zorgvliet", "Adriaan Goekooplaan", "13", "2517 JX", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Algemeen bijzonder", "0703557920", "www.nutsschoolzorgvliet.nl", "Adriaan Goekooplaan", "13", "2517 JX", "'S-GRAVENHAGE", "Scheveningen", "Zorgvliet", "", "0.00", "0.00", "52.092106", "4.285547"], ["DH-0105", "20281", "Stichting Lucas Onderwijs", "19VU", "19VU00", "Nutsbasisschool Woonstede", "Woonstede", "98", "2543 VR", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Algemeen bijzonder", "0703667717", "www.nutsschoolwoonstede.nl", "Woonstede", "98", "2543 VR", "'S-GRAVENHAGE", "Escamp", "Bouwlust", "", "441.62", "34.95", "52.039324", "4.260196"], ["DH-0106", "41572", "'De Haagse Scholen', stg. voor primair & spec. openb. onderw", "19WO", "19WO00", "Het Galjoen", "Anna Blamanplein", "15", "2525 ZV", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Openbaar", "0703803416", "www.obshetgaljoen.nl", "Anna Blamanplein", "15", "2525 ZV", "'S-GRAVENHAGE", "Centrum", "Groente- en Fruitmarkt", "", "788.25", "64.40", "52.059887", "4.300240"], ["DH-0107", "41572", "'De Haagse Scholen', stg. voor primair & spec. openb. onderw", "19XU", "19XU00", "De Tweemaster", "Tesselsestraat", "75-A", "2583 JH", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Openbaar", "0703558619", "www.obs-tweemaster.nl", "Tesselsestraat", "75-A", "2583 JH", "'S-GRAVENHAGE", "Scheveningen", "Duindorp", "", "141.14", "23.47", "52.090725", "4.259554"], ["DH-0108", "41572", "'De Haagse Scholen', stg. voor primair & spec. openb. onderw", "19YL", "19YL00", "Basisschool De Voorsprong", "Ruijsdaelstraat", "11", "2525 AA", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Openbaar", "0703805157", "www.obsdevoorsprong.nl", "Ruijsdaelstraat", "11", "2525 AA", "'S-GRAVENHAGE", "Centrum", "Schildersbuurt", "", "1082.21", "93.10", "52.070248", "4.300292"], ["DH-0109", "41572", "'De Haagse Scholen', stg. voor primair & spec. openb. onderw", "19YS", "19YS00", "De Vlierboom", "Vlierboomstraat", "366", "2564 JJ", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Openbaar", "0703231215", "www.devlierboom.nl", "Vlierboomstraat", "366", "2564 JJ", "'S-GRAVENHAGE", "Segbroek", "Vruchtenbuurt", "", "207.80", "30.19", "52.068976", "4.259435"], ["DH-0110", "41572", "'De Haagse Scholen', stg. voor primair & spec. openb. onderw", "19YX", "19YX00", "Kindcentrum Kansrijk", "Walenburg", "25", "2591 BR", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Openbaar", "0703856563", "www.kckansrijk.nl", "Walenburg", "25", "2591 BR", "'S-GRAVENHAGE", "Haagse Hout", "Mariahoeve en Marlot", "", "292.61", "52.57", "52.091857", "4.362436"], ["DH-0111", "41572", "'De Haagse Scholen', stg. voor primair & spec. openb. onderw", "19ZF", "19ZF00", "Prinses Marijkeschool", "Abraham van Beyerenstr", "1-C", "2525 TA", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Openbaar", "0703884035", "www.prinsesmarijkeschool.nl", "Abraham van Beyerenstr", "1-C", "2525 TA", "'S-GRAVENHAGE", "Centrum", "Schildersbuurt", "", "965.03", "71.73", "52.064394", "4.306150"], ["DH-0112", "41572", "'De Haagse Scholen', stg. voor primair & spec. openb. onderw", "19ZJ", "19ZJ00", "Zuidwalschool", "Lepelstraat", "6", "2512 CW", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Openbaar", "0703633650", "www.obszuidwalschool.nl", "Lepelstraat", "6", "2512 CW", "'S-GRAVENHAGE", "Centrum", "Centrum", "Volgens RIO is het lesgebouw van 19ZJ00: Zuidwal 47 (2512XT); dit adres staat niet in RIO; Adres verschilt tussen bronnen: DUO Lepelstraat 6 (2512CW) / CRM Zuidwal 47 (2512XT) / Planned Culture Zuidwal 47 (2512XT); Adres niet gevonden in BAG; kaartlocatie is benadering op postcode", "767.16", "99.22", "52.072334", "4.310245"], ["DH-0113", "30709", "Stichting Hindoe Onderwijs Nederland", "22MH", "22MH00", "Shri Vishnu School", "Abraham van Beyerenstr", "56", "2525 TH", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Hindoeïstisch", "0703656900", "www.shrivishnu.nl", "Postbus", "52104", "2505 CC", "'S-GRAVENHAGE", "Centrum", "Schildersbuurt", "Volgens RIO is het lesgebouw van 22MH00: Abraham van Beyerenstraat 54-A (2525TH); dit adres staat niet in RIO; Adres niet gevonden in BAG; kaartlocatie is benadering op postcode", "388.14", "61.62", "52.063793", "4.305174"], ["DH-0114", "40272", "Islam. Stg. Ned. Ond. en Opv.- ISNO, Yunus Emre Den Haag", "23GV", "23GV00", "Islamitische Basisschool Yunus Emre", "Mandelaplein", "2", "2572 HT", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Islamitisch", "0703895376", "www.bsyunusemre.nl", "Mandelaplein", "2", "2572 HT", "'S-GRAVENHAGE", "Centrum", "Transvaalkwartier", "", "521.41", "44.46", "52.064176", "4.295782"], ["DH-0115", "61960", "Stichting Samenwerkende Vrijescholen Zuid-Holland", "24RU", "24RU00", "Vrijeschool Wonnebald", "Mozartlaan", "189", "2555 JK", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Antroposofisch", "0703254818", "www.wonnebald.nl", "Vredehofweg", "32-A", "3062 EP", "ROTTERDAM", "Loosduinen", "Waldeck", "", "0.00", "0.00", "52.062577", "4.235305"], ["DH-0116", "40740", "Stichting Vooruitstrevend Alg. Hindoe Onderwijs Nederl.", "25GH", "25GH00", "Algemene Hindoeschool", "Mackaystraat", "6", "2571 AR", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Hindoeïstisch", "0703841924", "www.vahon.nl", "Mackaystraat", "6", "2571 AR", "'S-GRAVENHAGE", "Segbroek", "Regentessekwartier", "", "337.56", "38.03", "52.073562", "4.290930"], ["DH-0117", "40928", "Laurentius Stichting voor Kathol. Primair Onderwijs", "26AV", "26AV00", "RK Basisschool Christoffel", "Madurolaan", "25", "2496 RH", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Rooms-Katholiek", "0651740087", "www.christoffel.nl", "Madurolaan", "25", "2496 RH", "'S-GRAVENHAGE", "Leidschenveen-Ypenburg", "Ypenburg", "", "32.61", "10.10", "52.042972", "4.367437"], ["DH-0118", "20281", "Stichting Lucas Onderwijs", "26AW", "26AW00", "Prot Chr Basisschool De Vlieger", "Frits Diepenlaan", "43", "2497 DN", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Protestants-Christelijk", "0703906732", "www.nldata.nl/devlieger", "Frits Diepenlaan", "43", "2497 DN", "'S-GRAVENHAGE", "Leidschenveen-Ypenburg", "Ypenburg", "", "234.48", "21.51", "52.040553", "4.366243"], ["DH-0119", "41572", "'De Haagse Scholen', stg. voor primair & spec. openb. onderw", "26AX", "26AX00", "De Vijver", "Kikkerbeetlaan", "27", "2548 WJ", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Openbaar", "0703967588", "www.daltonschooldevijver.nl", "Kikkerbeetlaan", "27", "2548 WJ", "'S-GRAVENHAGE", "Escamp", "Wateringse Veld", "", "381.37", "39.45", "52.020189", "4.301049"], ["DH-0120", "20281", "Stichting Lucas Onderwijs", "26AY", "26AY00", "Rooms Katholieke Basisschool De Fontein", "Laan van Wateringse Veld", "462", "2548 CK", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Rooms-Katholiek", "0703965050", "www.fontein.nl", "Laan van Wateringse Veld", "462", "2548 CK", "'S-GRAVENHAGE", "Escamp", "Wateringse Veld", "", "1298.85", "111.53", "52.031726", "4.287046"], ["DH-0121", "70176", "Stichting Christel. Onderwijs Haaglanden", "26AZ", "26AZ00", "De Gantel", "Laan van Wateringse Veld", "925", "2548 BR", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Protestants-Christelijk", "0703967222", "www.degantel.nl", "Laan van Wateringse Veld", "925", "2548 BR", "'S-GRAVENHAGE", "Escamp", "Wateringse Veld", "", "81.18", "5.78", "52.026166", "4.289813"], ["DH-0122", "41572", "'De Haagse Scholen', stg. voor primair & spec. openb. onderw", "26PJ", "26PJ00", "Openbare Dalton Basisschool Waterland", "Eendenplein", "1", "2492 NZ", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Openbaar", "0703278335", "www.obswaterland.nl", "Eendenplein", "1", "2492 NZ", "'S-GRAVENHAGE", "Leidschenveen-Ypenburg", "Leidschenveen", "", "17.31", "0.70", "52.065501", "4.411618"], ["DH-0123", "41572", "'De Haagse Scholen', stg. voor primair & spec. openb. onderw", "26PP", "26PP00", "Openbare Basisschool De Notenkraker", "Eksterhof", "2", "2496 HS", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Openbaar", "0153106060", "www.obsdenotenkraker.nl", "Eksterhof", "2", "2496 HS", "'S-GRAVENHAGE", "Leidschenveen-Ypenburg", "Ypenburg", "", "259.68", "35.18", "52.049676", "4.383793"], ["DH-0124", "20281", "Stichting Lucas Onderwijs", "26PT", "26PT00", "KC Balans", "Klaverveld", "5", "2492 MA", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Samenwerking PC, RK", "0703175214", "https://www.kcbalans.nl/", "Klaverveld", "5", "2492 MA", "'S-GRAVENHAGE", "Leidschenveen-Ypenburg", "Leidschenveen", "", "0.00", "0.00", "52.069752", "4.406267"], ["DH-0125", "41447", "Stichting. r.-k., Algemeen Bijzonder en Openbaar Primair Onderwijs PANTA RHEI", "26PX", "26PX00", "De Walvis", "Eendenplein", "5", "2492 NZ", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Rooms-Katholiek", "0703206705", "www.bsdewalvis.nl", "Eendenplein", "5", "2492 NZ", "'S-GRAVENHAGE", "Leidschenveen-Ypenburg", "Leidschenveen", "", "0.00", "2.63", "52.064808", "4.412824"], ["DH-0126", "41081", "Montessori Stichting Vreugd en Rust", "26PZ", "26PZ00", "Montessorischool Leidschenveen", "Cicerostrook", "1", "2493 ZL", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Algemeen bijzonder", "0703271123", "www.montessorileidschenveen.nl", "Cicerostrook", "1", "2493 ZL", "'S-GRAVENHAGE", "Leidschenveen-Ypenburg", "Leidschenveen", "", "0.00", "0.00", "52.060213", "4.395672"], ["DH-0127", "78782", "Octant, stichting voor christelijk primair onderwijs", "27CF", "27CF00", "Fontein", "Steenuillaan", "2", "2496 PN", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Protestants-Christelijk", "0153106066", "www.fontein-octant.nl", "Steenuillaan", "2", "2496 PN", "'S-GRAVENHAGE", "Leidschenveen-Ypenburg", "Ypenburg", "", "110.84", "22.23", "52.044718", "4.374296"], ["DH-0128", "20281", "Stichting Lucas Onderwijs", "27CH", "27CH00", "Rooms Katholieke Basisschool De Paradijsvogel", "Weidevogellaan", "201", "2496 MT", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Rooms-Katholiek", "0153106112", "https://www.basisschooldeparadijsvogel.nl/", "Weidevogellaan", "201", "2496 MT", "'S-GRAVENHAGE", "Leidschenveen-Ypenburg", "Ypenburg", "", "0.00", "0.00", "52.047622", "4.376065"], ["DH-0129", "40389", "Stichting Islamitisch Onderwijs Iqra", "27PC", "27PC00", "Al Qoeba", "Terwestenstraat", "105", "2525 GG", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Islamitisch", "0703887915", "www.alqoeba.nl", "Terwestenstraat", "105", "2525 GG", "'S-GRAVENHAGE", "Centrum", "Schildersbuurt", "", "445.12", "38.57", "52.065456", "4.300805"], ["DH-0130", "78782", "Octant, stichting voor christelijk primair onderwijs", "27PD", "27PD00", "Zonnestraal", "Oeverwallaan", "108", "2498 BZ", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Protestants-Christelijk", "0153698244", "www.zonnestraal-octant.nl", "Oeverwallaan", "108", "2498 BZ", "'S-GRAVENHAGE", "Leidschenveen-Ypenburg", "Ypenburg", "", "38.45", "14.97", "52.031516", "4.381316"], ["DH-0131", "20281", "Stichting Lucas Onderwijs", "27PX", "27PX00", "RKBS De Bras", "Oeverwallaan", "104", "2498 BZ", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Rooms-Katholiek", "0153698243", "https://www.basisschooldebras.nl/", "Oeverwallaan", "104", "2498 BZ", "'S-GRAVENHAGE", "Leidschenveen-Ypenburg", "Ypenburg", "", "0.00", "0.00", "52.031516", "4.381316"], ["DH-0132", "41572", "'De Haagse Scholen', stg. voor primair & spec. openb. onderw", "27VA", "27VA00", "Prinses Catharina-Amaliaschool", "Cicerostrook", "9", "2493 ZL", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Openbaar", "0703019586", "www.obs-pca.nl", "Cicerostrook", "9", "2493 ZL", "'S-GRAVENHAGE", "Leidschenveen-Ypenburg", "Leidschenveen", "", "193.92", "19.31", "52.059814", "4.396247"], ["DH-0133", "40272", "Islam. Stg. Ned. Ond. en Opv.- ISNO, Yunus Emre Den Haag", "31DE", "31DE00", "Islamitische Basisschool Yunus Emre", "Beresteinlaan", "629", "2542 JR", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Islamitisch", "0707830001", "www.bsyunusemre.nl", "Beresteinlaan", "629", "2542 JR", "'S-GRAVENHAGE", "Escamp", "Bouwlust", "", "484.32", "34.42", "52.036328", "4.261839"], ["DH-0134", "40272", "Islam. Stg. Ned. Ond. en Opv.- ISNO, Yunus Emre Den Haag", "31PG", "31PG00", "Yunus Emre", "Van Damstraat", "7", "2512 PG", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Islamitisch", "0703050441", "www.bsyunusemre.nl", "Van Damstraat", "7", "2512 PG", "'S-GRAVENHAGE", "Centrum", "Schildersbuurt", "", "1248.87", "110.62", "52.071139", "4.293963"], ["DH-0135", "70176", "Stichting Christel. Onderwijs Haaglanden", "31RW", "31RW00", "CBS De Waterlelie", "Laantje van Salland", "32", "2548 NP", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Protestants-Christelijk", "0703099730", "", "", "", "", "", "Escamp", "Wateringse Veld", "", "0.00", "0.00", "52.034392", "4.293524"], ["DH-0136", "20281", "Stichting Lucas Onderwijs", "31VB", "31VB00", "KC De Binck", "St. Barbaraweg", "4", "2516 BT", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Interconfessioneel", "", "https://www.kcdebinck.nl/", "St. Barbaraweg", "4", "2516 BT", "'S-GRAVENHAGE", "Laak", "Binckhorst", "", "0.00", "0.08", "52.068428", "4.339616"], ["DH-0137", "50096", "Stichting Innovatief Islamitisch Onderwijs Nederland e.o.", "32DD", "32DD00", "Aida", "Elboogstraat", "68", "2516 PV", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Islamitisch", "0708201200", "www.basisschoolaida.nl", "Elboogstraat", "68", "2516 PV", "'S-GRAVENHAGE", "Laak", "Laakkwartier en Spoorwijk", "", "200.70", "24.15", "52.066957", "4.332230"], ["DH-0138", "34932", "Stichting School met de Bijbel", "32DU", "32DU00", "Tamarschool", "Fluitenbergstraat", "6", "2545 NL", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Evangelisch", "0703099066", "https://tamarschool.nl/", "Fluitenbergstraat", "6", "2545 NL", "'S-GRAVENHAGE", "Escamp", "Morgenstond", "", "574.11", "73.75", "52.050574", "4.279136"], ["DH-0139", "41572", "'De Haagse Scholen', stg. voor primair & spec. openb. onderw", "18PQ", "18PQ00", "Anne Frank Wereldschool (dependance Laagveen)", "Laagveen", "22", "2544 RZ", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Openbaar", "", "", "Beresteinlaan", "267", "2542 JG", "'S-GRAVENHAGE", "Escamp", "Bouwlust", "", "", "", "52.040248", "4.251379"], ["DH-0140", "20281", "Stichting Lucas Onderwijs", "03PY", "", "BaO Aquamarijn (dependance Albardastraat)", "Albardastraat", "23", "2555 XP", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Rooms-Katholiek", "", "", "Donker Curtiusstraat", "4", "2555 XW", "'S-GRAVENHAGE", "Loosduinen", "Waldeck", "Dependance uit Planned Culture, niet apart in DUO; bestuur, denominatie en correspondentieadres overgenomen van hoofdlocatie; Locatie niet bevestigd door RIO (mogelijk niet meer in gebruik)", "", "", "52.062118", "4.248096"], ["DH-0141", "20281", "Stichting Lucas Onderwijs", "15VU", "15VU00", "Basisschool 't Palet (dependance Doedijnsstraat)", "Doedijnstraat", "4", "2526 ED", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Rooms-Katholiek", "", "", "Vaillantlaan", "230", "2526 HR", "'S-GRAVENHAGE", "Centrum", "Schildersbuurt", "", "", "", "52.068031", "4.311013"], ["DH-0142", "95694", "Stichting Haagsche Schoolvereeniging", "05VW", "05VW00", "Basisschool voor Jong Talent", "Spuiplein", "150", "2511 DG", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Algemeen bijzonder", "0703151434", "www.koncon.nl", "Nassaulaan", "26", "2514 JT", "'S-GRAVENHAGE", "Centrum", "Centrum", "", "", "", "52.077291", "4.317523"], ["DH-0143", "70176", "Stichting Christel. Onderwijs Haaglanden", "17TD", "17TD00", "CBS De Spiegel", "Van de Spiegelstraat", "23", "2518 ES", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Protestants-Christelijk", "0703457787", "www.cbsdespiegel.nl", "Hollanderstraat", "21", "2517 HH", "'S-GRAVENHAGE", "Centrum", "Zeeheldenkwartier", "", "", "", "52.084969", "4.297040"], ["DH-0144", "70176", "Stichting Christel. Onderwijs Haaglanden", "17TD", "", "CBS De Spiegel (dependance Witte de Withstraat)", "Witte de Withstraat", "85", "2518 CR", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Protestants-Christelijk", "", "", "Hollanderstraat", "21", "2517 HH", "'S-GRAVENHAGE", "Centrum", "Zeeheldenkwartier", "Dependance uit Planned Culture, niet apart in DUO; bestuur, denominatie en correspondentieadres overgenomen van hoofdlocatie; Locatie niet bevestigd door RIO (mogelijk niet meer in gebruik)", "", "", "52.079675", "4.293592"], ["DH-0145", "70176", "Stichting Christel. Onderwijs Haaglanden", "17SU", "17SU00", "Chr Basisschool Comenius (dependance Viljoenstraat)", "Viljoenstraat", "8", "2572 PD", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Protestants-Christelijk", "", "", "Colensostraat", "6", "2572 NR", "'S-GRAVENHAGE", "Centrum", "Transvaalkwartier", "", "", "", "52.062552", "4.295034"], ["DH-0146", "70176", "Stichting Christel. Onderwijs Haaglanden", "17VA", "", "Christelijke Basisschool De Vliermeent (dependance Mari Andriessenerf)", "Mari Andriessenerf", "15", "2552 KL", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Protestants-Christelijk", "", "", "Vlierboomstraat", "362", "2564 HT", "'S-GRAVENHAGE", "Loosduinen", "Loosduinen", "Dependance uit Planned Culture, niet apart in DUO; bestuur, denominatie en correspondentieadres overgenomen van hoofdlocatie; Locatie niet bevestigd door RIO (mogelijk niet meer in gebruik)", "", "", "52.053917", "4.249108"], ["DH-0147", "41572", "'De Haagse Scholen', stg. voor primair & spec. openb. onderw", "19SI", "19SI00", "De La Reyschool (Voorthuizenstraat)", "Voorthuizenstraat", "245", "2573 AH", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Openbaar", "+31 (0) 70361 17 017", "www.delareyschool.nl", "De la Reyweg", "212", "2571 GH", "'S-GRAVENHAGE", "Escamp", "Rustenburg en Oostbroek", "Telefoonnummer uit CRM is ongeldig (overgenomen zoals het er staat)", "", "", "52.065141", "4.281555"], ["DH-0148", "70176", "Stichting Christel. Onderwijs Haaglanden", "19VH", "19VH00", "De Meerpaal", "Tesselsestraat", "75", "2583 JH", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Protestants-Christelijk", "0703553385", "", "Westduinweg", "127", "2583 AA", "'S-GRAVENHAGE", "Scheveningen", "Duindorp", "", "", "", "52.090335", "4.259789"], ["DH-0149", "22168", "Stichting Natuurlijk Leren", "30AB", "30AB00", "De Vrije Ruimte PO", "Stadhouderslaan", "15", "2517 HV", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "", "0702154800", "", "", "", "", "", "Scheveningen", "Zorgvliet", "Adres niet bevestigd door RIO (geen lesgebouw geregistreerd voor 30AB00)", "", "", "52.086960", "4.281373"], ["DH-0150", "", "", "", "", "Deutsche Internationale Schule Den Haag", "Van Bleiswijkstraat", "125", "2582 LB", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "", "0703549454", "", "", "", "", "", "Scheveningen", "Geuzen- en Statenkwartier", "Niet in DUO of RIO (buitenlandse of particuliere school); gegevens uit CRM/Planned Culture", "", "", "52.094608", "4.280700"], ["DH-0151", "46879", "Stichting 'Het Rijnlands Lyceum'", "05VX", "05VX00", "Europese School Den Haag (po)", "Houtrustweg", "2", "2566 HA", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Algemeen bijzonder", "0707001600", "www.europeanschoolthehague.nl/primary", "Postbus", "486", "2240 AL", "WASSENAAR", "Segbroek", "Bomen- en Bloemenbuurt", "", "", "", "52.083322", "4.273275"], ["DH-0152", "95694", "Stichting Haagsche Schoolvereeniging", "05VW", "05VW00", "Haagsche Schoolvereeniging KSS", "Koningin Sophiestraat", "24-A", "2595 TG", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Algemeen bijzonder", "0703281441", "www.hsvdenhaag.nl", "Nassaulaan", "26", "2514 JT", "'S-GRAVENHAGE", "Haagse Hout", "Bezuidenhout", "", "", "", "52.080586", "4.337556"], ["DH-0153", "95694", "Stichting Haagsche Schoolvereeniging", "05VW", "05VW00", "Haagsche Schoolvereeniging VHS", "Van Heutszstraat", "12", "2593 PJ", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Algemeen bijzonder", "0703243453", "www.hsvdenhaag.nl", "Nassaulaan", "26", "2514 JT", "'S-GRAVENHAGE", "Haagse Hout", "Bezuidenhout", "", "", "", "52.085592", "4.346756"], ["DH-0154", "95694", "Stichting Haagsche Schoolvereeniging", "05VW", "05VW00C", "Haagsche Schoolvereeniging VNS", "Van Nijenrodestraat", "16", "2597 RM", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Algemeen bijzonder", "0703281441", "www.hsvdenhaag.nl", "Nassaulaan", "26", "2514 JT", "'S-GRAVENHAGE", "Haagse Hout", "Benoordenhout", "Nevenlocatie van 05VW00, niet apart in DUO; bestuur, denominatie en correspondentieadres overgenomen van hoofdvestiging; Locatie niet bevestigd door RIO (mogelijk niet meer in gebruik); RIO-gebouwen van 05VW00 die niet in dit register staan: Van Diepenburchstraat 1 (2597PR), 61 m; Adres niet gevonden in BAG; kaartlocatie is benadering op postcode", "", "", "52.097808", "4.311888"], ["DH-0155", "95694", "Stichting Haagsche Schoolvereeniging", "05VW", "05VW00", "Het Open Venster", "Van Heutszstraat", "12", "2593 PJ", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Algemeen bijzonder", "0703350959", "www.hetopenvensterdenhaag.nl", "Nassaulaan", "26", "2514 JT", "'S-GRAVENHAGE", "Haagse Hout", "Bezuidenhout", "", "", "", "52.085592", "4.346756"], ["DH-0156", "40272", "Islam. Stg. Ned. Ond. en Opv.- ISNO, Yunus Emre Den Haag", "31PG", "31PG00", "IBS Yunus Emre (Schalk Burgerstraat)", "Schalk Burgerstraat", "383", "2572 TB", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Islamitisch", "0703886474", "www.bsyunusemre.nl", "Van Damstraat", "7", "2512 PG", "'S-GRAVENHAGE", "Centrum", "Transvaalkwartier", "", "", "", "52.061909", "4.292795"], ["DH-0157", "46879", "Stichting 'Het Rijnlands Lyceum'", "05VX", "05VX00", "International School of the Hague", "Wijndaelerweg", "11", "2554 BZ", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Algemeen bijzonder", "", "", "Postbus", "486", "2240 AL", "WASSENAAR", "Loosduinen", "Kijkduin en Ockenburgh", "", "", "", "52.059021", "4.223019"], ["DH-0158", "95785", "Stichting Vrijescholen ZW Nederland", "05WB", "05WB00", "International Waldorf School The Hague", "2e Messstraat", "31", "2586 XA", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Antroposofisch", "0707830030", "", "Waalsdorperweg", "12", "2597 JB", "'S-GRAVENHAGE", "Scheveningen", "Scheveningen", "", "", "", "52.110066", "4.282630"], ["DH-0159", "40272", "Islam. Stg. Ned. Ond. en Opv.- ISNO, Yunus Emre Den Haag", "31DE", "", "Islamitische Basisschool Yunus Emre (dependance Haardstede)", "Haardstede", "5", "2543 VS", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Islamitisch", "", "", "Beresteinlaan", "629", "2542 JR", "'S-GRAVENHAGE", "Escamp", "Bouwlust", "Dependance uit Planned Culture, niet apart in DUO; bestuur, denominatie en correspondentieadres overgenomen van hoofdlocatie; Locatie niet bevestigd door RIO (mogelijk niet meer in gebruik)", "", "", "52.039434", "4.259082"], ["DH-0160", "20281", "Stichting Lucas Onderwijs", "05HC", "05HC00", "J.F. Kennedy Montessori School", "Diamanthorst", "10", "2592 GH", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Rooms-Katholiek", "0703853390", "www.kennedymontessori.nl", "Gradaland", "5", "2591 HB", "'S-GRAVENHAGE", "Haagse Hout", "Mariahoeve en Marlot", "Nevenlocatie van 05HC00, niet apart in DUO; bestuur, denominatie en correspondentieadres overgenomen van hoofdvestiging; Locatie niet bevestigd door RIO (mogelijk niet meer in gebruik); Volgens RIO is dit gebouw van 15ZZ00 Diamant", "", "", "52.093760", "4.354135"], ["DH-0161", "70176", "Stichting Christel. Onderwijs Haaglanden", "16WH", "16WH01", "Kindcentrum Vroondaal", "Bertrand Russelllaan", "16", "2553 DP", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Protestants-Christelijk", "", "", "Madepolderweg", "76-78", "2553 EG", "'S-GRAVENHAGE", "Loosduinen", "Kraayenstein en Vroondaal", "Nevenlocatie van 16WH00, niet apart in DUO; bestuur, denominatie en correspondentieadres overgenomen van hoofdvestiging; Locatie niet bevestigd door RIO (mogelijk niet meer in gebruik); Alleen in Planned Culture (niet in CRM)", "", "", "52.040730", "4.232999"], ["DH-0162", "", "", "", "", "Lycée Vincent van Gogh", "Scheveningseweg", "237", "2584 AA", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "", "0702174411", "", "", "", "", "", "Scheveningen", "Scheveningen", "Niet in DUO of RIO (buitenlandse of particuliere school); gegevens uit CRM/Planned Culture", "", "", "52.102199", "4.279626"], ["DH-0163", "41572", "'De Haagse Scholen', stg. voor primair & spec. openb. onderw", "19OC", "", "Openbare Basisschool Prins Willem Alexander (dependance Slachthuisplein)", "Slachthuisplein", "15", "2521 EC", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Openbaar", "", "", "Laakweg", "199", "2521 SG", "'S-GRAVENHAGE", "Laak", "Laakkwartier en Spoorwijk", "Dependance uit Planned Culture, niet apart in DUO; bestuur, denominatie en correspondentieadres overgenomen van hoofdlocatie; Locatie niet bevestigd door RIO (mogelijk niet meer in gebruik)", "", "", "52.064431", "4.322572"], ["DH-0164", "20281", "Stichting Lucas Onderwijs", "27CH", "", "Rooms Katholieke Basisschool De Paradijsvogel (dependance Eksterhof)", "Eksterhof", "3", "2496 HT", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Rooms-Katholiek", "", "", "Weidevogellaan", "201", "2496 MT", "'S-GRAVENHAGE", "Leidschenveen-Ypenburg", "Ypenburg", "Dependance uit Planned Culture, niet apart in DUO; bestuur, denominatie en correspondentieadres overgenomen van hoofdlocatie; Locatie niet bevestigd door RIO (mogelijk niet meer in gebruik)", "", "", "52.049305", "4.382986"], ["DH-0165", "41572", "'De Haagse Scholen', stg. voor primair & spec. openb. onderw", "19OQ", "19OQ00", "Springbok International (Wolmaranstraat)", "Wolmaransstraat", "100", "2572 EM", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "Openbaar", "0703804071", "www.despringbok.nl", "Pretoriusstraat", "123", "2571 VD", "'S-GRAVENHAGE", "Centrum", "Transvaalkwartier", "", "", "", "52.064994", "4.295631"], ["DH-0166", "", "", "", "", "The British School in The Netherlands", "Vrouw Avenweg", "640", "2493 WZ", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "", "0703154079", "", "", "", "", "", "Leidschenveen-Ypenburg", "Leidschenveen", "Niet in DUO of RIO (buitenlandse of particuliere school); gegevens uit CRM/Planned Culture", "", "", "52.056967", "4.400315"], ["DH-0167", "", "", "", "", "The Polish School", "Withuysstraat", "2", "2523 GW", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "", "", "", "", "", "", "", "Laak", "Laakkwartier en Spoorwijk", "Niet in DUO of RIO (buitenlandse of particuliere school); gegevens uit CRM/Planned Culture; Volgens RIO is dit gebouw van 17UD00 Dr J A Gerth V Wijksch voor Christelijk Basis Onderwijs", "", "", "52.058715", "4.316682"], ["DH-0168", "90458", "Winford Beheer B.V.", "30WD", "30WD00", "Winford Bilingual Primary School", "Korte Voorhout", "1", "2511 CW", "'S-GRAVENHAGE", "0518", "S GRAVENHAGE", "", "", "", "", "", "", "", "Centrum", "Centrum", "Volgens RIO is het lesgebouw van 30WD00: Bezuidenhoutseweg 91 (2594AC); dit adres staat niet in RIO; Volgens RIO is dit gebouw van 30BH00 Winford Den Haag VO", "", "", "52.082031", "4.315092"]]};
+const DATASET_NAME = "scholen_den_haag.xlsx";
+const QUALITY = "DATA_KWALITEIT";
+const LAT = "LATITUDE", LON = "LONGITUDE";
+const NAME = "VESTIGINGSNAAM", UID = "UNIEK_ID";
+
+const SCORE_PREFIX = "ACHTERSTANDSSCORE";
+const QUALITY_MODE = "quality";
+
+const state = {
+  columns: [], rows: [], show: { ok: true, flag: true }, query: "", selected: null, source: "",
+  mode: QUALITY_MODE, breaks: {},
+};
+const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+// grey BRT Achtergrondkaart from PDOK (Kadaster): free, no API key, and it also loads when the page is opened from
+// disk; the grey style keeps the colour for the school markers, dark mode inverts the tiles with a CSS filter
+const map = L.map("map", { zoomControl: true, preferCanvas: false }).setView([52.07, 4.30], 12);
+L.tileLayer("https://service.pdok.nl/brt/achtergrondkaart/wmts/v2_0/grijs/EPSG:3857/{z}/{x}/{y}.png", {
+  attribution: 'Kaart: <a href="https://www.pdok.nl/introductie/-/article/basisregistratie-topografie-brt-topnl">BRT Achtergrondkaart</a> &copy; <a href="https://www.kadaster.nl">Kadaster</a>',
+  minZoom: 6,
+  maxZoom: 19,
+}).addTo(map);
+const darkQuery = window.matchMedia("(prefers-color-scheme: dark)");
+const markerLayer = L.layerGroup().addTo(map);
+let markers = [];
+
+function isFlagged(row) { return String(row[QUALITY] ?? "").trim() !== ""; }
+function coords(row) {
+  const lat = parseFloat(String(row[LAT] ?? "").replace(",", "."));
+  const lon = parseFloat(String(row[LON] ?? "").replace(",", "."));
+  return Number.isFinite(lat) && Number.isFinite(lon) && lat !== 0 && lon !== 0 ? [lat, lon] : null;
+}
+function addressOf(row) {
+  return [row.STRAATNAAM, row["HUISNUMMER-TOEVOEGING"]].filter(Boolean).join(" ") +
+    (row.POSTCODE ? `, ${row.POSTCODE}` : "");
+}
+// the quality filter only applies while the map is coloured by data quality
+function visible(row) { return state.mode !== QUALITY_MODE || (isFlagged(row) ? state.show.flag : state.show.ok); }
+
+// achterstandsscores: a neutral grey for 0 (below the CBS threshold, so no budget: a different kind of value, not the
+// low end of the scale) and four blue quartile classes for the positive scores; each year gets its own classes because
+// the 2026 method uses a different scale
+function scoreColumns() { return state.columns.filter((c) => c.toUpperCase().startsWith(SCORE_PREFIX)); }
+function scoreLabel(col) {
+  const rest = col.slice(SCORE_PREFIX.length).replace(/^_/, "").split("_");
+  const extra = rest.slice(1).map((w) => w.toLowerCase()).join(" ");
+  return `Achterstandsscore ${rest[0]}${extra ? ` (${extra})` : ""}`;
+}
+function scoreValue(row, col) {
+  let text = String(row[col] ?? "").trim();
+  if (!text) return null;
+  if (text.includes(",") && !text.includes(".")) text = text.replace(",", ".");
+  const value = parseFloat(text);
+  return Number.isFinite(value) ? value : null;
+}
+function niceRound(value) {
+  if (value <= 0) return 0;
+  const step = Math.pow(10, Math.floor(Math.log10(value)) - 1);
+  return Math.round(value / step) * step;
+}
+function computeBreaks(col) {
+  const positive = state.rows.map((r) => scoreValue(r, col)).filter((v) => v !== null && v > 0).sort((a, b) => a - b);
+  if (positive.length < 4) return positive.length ? [positive[0], positive[0], positive[0]] : [0, 0, 0];
+  const at = (q) => positive[Math.min(positive.length - 1, Math.floor(q * positive.length))];
+  const exact = [at(0.25), at(0.5), at(0.75)];
+  const rounded = exact.map(niceRound);
+  return rounded[0] > 0 && rounded[0] < rounded[1] && rounded[1] < rounded[2] ? rounded : exact;
+}
+function scoreClass(value, breaks) {
+  if (value === null) return null;
+  if (value <= 0) return 0;
+  return value <= breaks[0] ? 1 : value <= breaks[1] ? 2 : value <= breaks[2] ? 3 : 4;
+}
+const formatNumber = (value, digits) => value.toLocaleString("nl-NL", { minimumFractionDigits: digits, maximumFractionDigits: digits });
+function scoreText(row, col) {
+  const value = scoreValue(row, col);
+  return value === null ? "geen score" : formatNumber(value, 2);
+}
+function rowColor(row) {
+  if (state.mode === QUALITY_MODE) return css(isFlagged(row) ? "--series-flag" : "--series-ok");
+  const cls = scoreClass(scoreValue(row, state.mode), state.breaks[state.mode]);
+  return cls === null ? null : css(`--seq-${cls}`);
+}
+function matches(row) {
+  if (!state.query) return true;
+  const q = state.query.toLowerCase();
+  return state.columns.some((c) => String(row[c] ?? "").toLowerCase().includes(q));
+}
+function esc(text) {
+  return String(text ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+}
+
+function markerStyle(row, selected) {
+  if (state.mode !== QUALITY_MODE) {
+    const fill = rowColor(row);
+    // no score (not a DUO location): a hollow ring, so it never reads as a low score
+    if (fill === null) {
+      return { radius: selected ? 9 : 5, color: selected ? css("--text-primary") : css("--text-muted"),
+               weight: selected ? 3 : 2, dashArray: null, fillOpacity: 0 };
+    }
+    return { radius: selected ? 10 : 7, color: selected ? css("--text-primary") : css("--ring"),
+             weight: selected ? 3 : 2, dashArray: null, fillColor: fill, fillOpacity: 0.95 };
+  }
+  const flag = isFlagged(row);
+  return {
+    radius: selected ? 10 : 7,
+    color: selected ? css("--text-primary") : (flag ? css("--text-primary") : css("--ring")),
+    weight: selected ? 3 : 2,
+    dashArray: flag && !selected ? "3 3" : null,
+    fillColor: flag ? css("--series-flag") : css("--series-ok"),
+    fillOpacity: 0.9,
+  };
+}
+
+function drawMarkers() {
+  markerLayer.clearLayers();
+  markers = [];
+  state.rows.forEach((row, index) => {
+    const ll = coords(row);
+    if (!ll || !visible(row) || !matches(row)) return;
+    const marker = L.circleMarker(ll, markerStyle(row, index === state.selected));
+    const scoreLine = state.mode === QUALITY_MODE ? "" : `<br>${esc(scoreLabel(state.mode))}: ${esc(scoreText(row, state.mode))}`;
+    marker.bindTooltip(`<strong>${esc(row[NAME])}</strong><br>${esc(addressOf(row))}${scoreLine}`,
+      { direction: "top", offset: [0, -6] });
+    marker.on("click", () => select(index, false));
+    marker.rowIndex = index;
+    marker.addTo(markerLayer);
+    markers.push(marker);
+  });
+  markers.filter((m) => m.rowIndex === state.selected).forEach((m) => m.bringToFront());
+}
+
+function renderCount() {
+  const total = state.rows.length;
+  const flagged = state.rows.filter(isFlagged).length;
+  const unmapped = state.rows.filter((r) => !coords(r)).length;
+  document.getElementById("count").textContent =
+    `${total} locaties · ${flagged} met opmerking` + (unmapped ? ` · ${unmapped} niet op kaart` : "");
+  document.getElementById("dataset").textContent = state.source;
+}
+
+function renderList() {
+  const panel = document.getElementById("panel");
+  const shown = state.rows.map((row, index) => ({ row, index })).filter(({ row }) => visible(row) && matches(row));
+  const mapped = shown.filter(({ row }) => coords(row));
+  const unmapped = shown.filter(({ row }) => !coords(row));
+  const item = ({ row, index }) => {
+    let dot = `<span class="dot ${!coords(row) ? "none" : (isFlagged(row) ? "flag" : "")}" aria-hidden="true"></span>`;
+    let extra = "";
+    if (state.mode !== QUALITY_MODE) {
+      const fill = rowColor(row);
+      dot = fill === null ? `<span class="dot none" aria-hidden="true"></span>`
+                          : `<span class="dot" style="background:${fill}" aria-hidden="true"></span>`;
+      extra = ` · score ${esc(scoreText(row, state.mode))}`;
+    }
+    return `<li data-index="${index}" tabindex="0">${dot}
+      <span><span class="name">${esc(row[NAME])}</span><br><span class="sub">${esc(row[UID])} · ${esc(addressOf(row))}${extra}</span></span></li>`;
+  };
+  panel.innerHTML = shown.length === 0
+    ? `<p class="detail">Geen scholen gevonden.</p>`
+    : `<ul class="list">${mapped.map(item).join("")}` +
+      (unmapped.length ? `<li class="unmapped-title">Niet op kaart (geen coördinaten)</li>${unmapped.map(item).join("")}` : "") +
+      `</ul>`;
+  panel.querySelectorAll("li[data-index]").forEach((li) => {
+    const open = () => select(Number(li.dataset.index), true);
+    li.addEventListener("click", open);
+    li.addEventListener("keydown", (e) => { if (e.key === "Enter") open(); });
+  });
+}
+
+function renderDetail(index) {
+  const row = state.rows[index];
+  const notes = String(row[QUALITY] ?? "").split(";").map((n) => n.trim()).filter(Boolean);
+  const fields = state.columns.map((col) => {
+    let value = row[col];
+    const empty = value === undefined || value === null || String(value).trim() === "";
+    let html = empty ? "—" : esc(value);
+    if (!empty && col.toUpperCase().startsWith(SCORE_PREFIX) && scoreValue(row, col) !== null) {
+      html = esc(formatNumber(scoreValue(row, col), 2));
+    }
+    if (!empty && col === "INTERNETADRES") {
+      const url = /^https?:\/\//i.test(value) ? value : `https://${value}`;
+      html = `<a href="${esc(url)}" target="_blank" rel="noopener">${esc(value)}</a>`;
+    }
+    return `<dt>${esc(col)}</dt><dd class="${empty ? "empty" : ""}">${html}</dd>`;
+  }).join("");
+  document.getElementById("panel").innerHTML = `<div class="detail">
+    <button type="button" class="btn ghost" id="back">← Alle scholen</button>
+    <h2>${esc(row[NAME])}</h2>
+    <div class="uid">${esc(row[UID])}</div>
+    ${notes.length
+      ? `<div class="quality"><strong>Let op: datakwaliteit</strong><ul>${notes.map((n) => `<li>${esc(n)}</li>`).join("")}</ul></div>`
+      : `<p class="certain">Gegevens uit DUO, geen tegenstrijdigheden gevonden.</p>`}
+    <dl>${fields}</dl></div>`;
+  document.getElementById("back").addEventListener("click", () => { state.selected = null; drawMarkers(); renderList(); });
+  document.getElementById("panel").scrollTop = 0;
+}
+
+function select(index, pan) {
+  state.selected = index;
+  drawMarkers();
+  renderDetail(index);
+  const ll = coords(state.rows[index]);
+  if (pan && ll) map.setView(ll, Math.max(map.getZoom(), 15));
+}
+
+function renderLegend() {
+  const legend = document.getElementById("legend");
+  if (state.mode === QUALITY_MODE) {
+    legend.setAttribute("role", "group");
+    legend.setAttribute("aria-label", "Filter op datakwaliteit");
+    legend.innerHTML = `
+      <button type="button" data-key="ok" aria-pressed="${state.show.ok}"><span class="swatch"></span>DUO, zeker</button>
+      <button type="button" data-key="flag" aria-pressed="${state.show.flag}"><span class="swatch flag"></span>Let op: zie DATA_KWALITEIT</button>`;
+    legend.querySelectorAll("button").forEach((button) => button.addEventListener("click", () => {
+      const key = button.dataset.key;
+      state.show[key] = !state.show[key];
+      button.setAttribute("aria-pressed", String(state.show[key]));
+      drawMarkers();
+      if (state.selected === null) renderList();
+    }));
+    return;
+  }
+  const breaks = state.breaks[state.mode];
+  const digits = breaks[2] >= 100 ? 0 : 1;
+  const f = (v) => formatNumber(v, digits);
+  const labels = ["0 (onder drempel)", `tot ${f(breaks[0])}`, `${f(breaks[0])} – ${f(breaks[1])}`,
+                  `${f(breaks[1])} – ${f(breaks[2])}`, `meer dan ${f(breaks[2])}`];
+  legend.setAttribute("role", "list");
+  legend.setAttribute("aria-label", `Legenda ${scoreLabel(state.mode)}`);
+  legend.innerHTML = labels.map((label, i) =>
+    `<span class="chip" role="listitem"><span class="swatch" style="background:var(--seq-${i});border-color:var(--seq-${i})"></span>${esc(label)}</span>`
+  ).join("") +
+    `<span class="chip" role="listitem"><span class="swatch hollow"></span>Geen score</span>` +
+    `<span class="note">${state.mode.toUpperCase().includes("VOORLOPIG")
+      ? "Voorlopig, herijkte CBS-methode: andere schaal dan 2025."
+      : "CBS, met drempel; klassen = kwartielen van de scores boven 0."}</span>`;
+}
+
+function renderModes() {
+  const modes = [[QUALITY_MODE, "Datakwaliteit"], ...scoreColumns().map((c) => [c, scoreLabel(c).replace("Achterstandsscore", "Score")])];
+  if (!modes.some(([key]) => key === state.mode)) state.mode = QUALITY_MODE;
+  const box = document.getElementById("mode");
+  box.innerHTML = modes.map(([key, label]) =>
+    `<button type="button" data-mode="${esc(key)}" aria-pressed="${key === state.mode}">${esc(label)}</button>`).join("");
+  box.querySelectorAll("button").forEach((button) => button.addEventListener("click", () => {
+    state.mode = button.dataset.mode;
+    box.querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b === button)));
+    renderLegend();
+    drawMarkers();
+    if (state.selected === null) renderList();
+  }));
+}
+
+function load(columns, rows, source) {
+  state.columns = columns;
+  state.rows = rows;
+  state.source = source;
+  state.selected = null;
+  state.breaks = Object.fromEntries(scoreColumns().map((c) => [c, computeBreaks(c)]));
+  renderModes();
+  renderLegend();
+  renderCount();
+  drawMarkers();
+  renderList();
+  const points = rows.map(coords).filter(Boolean);
+  // no animation, so a school selected right after loading is not overridden by the end of the zoom-to-fit
+  if (points.length) map.fitBounds(points, { padding: [24, 24], maxZoom: 15, animate: false });
+}
+
+function toast(text) {
+  const el = document.getElementById("toast");
+  el.textContent = text;
+  el.style.display = "block";
+  clearTimeout(toast.timer);
+  toast.timer = setTimeout(() => { el.style.display = "none"; }, 5000);
+}
+
+// reading a newer copy of the register (button or drag-and-drop)
+function readWorkbook(file) {
+  if (typeof XLSX === "undefined") { toast("De xlsx-lezer kon niet laden (geen internet?)."); return; }
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const workbook = XLSX.read(new Uint8Array(reader.result), { type: "array" });
+      const sheetName = workbook.SheetNames.includes("Scholen") ? "Scholen" : workbook.SheetNames[0];
+      const sheet = workbook.Sheets[sheetName];
+      const table = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "", raw: false });
+      const columns = (table[0] || []).map((c) => String(c).trim()).filter(Boolean);
+      if (!columns.includes(LAT) || !columns.includes(LON)) {
+        toast(`Kolommen ${LAT} en ${LON} ontbreken in blad "${sheetName}".`);
+        return;
+      }
+      const rows = table.slice(1)
+        .filter((r) => r.some((v) => String(v).trim() !== ""))
+        .map((r) => Object.fromEntries(columns.map((c, i) => [c, r[i] ?? ""])));
+      load(columns, rows, `${file.name} (blad ${sheetName})`);
+      toast(`${rows.length} scholen geladen uit ${file.name}.`);
+    } catch (err) {
+      toast(`Kon ${file.name} niet lezen: ${err.message}`);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+document.getElementById("open").addEventListener("click", () => document.getElementById("file").click());
+document.getElementById("file").addEventListener("change", (e) => { if (e.target.files[0]) readWorkbook(e.target.files[0]); e.target.value = ""; });
+let dragDepth = 0;
+window.addEventListener("dragenter", (e) => { e.preventDefault(); dragDepth++; document.getElementById("drop").classList.add("show"); });
+window.addEventListener("dragleave", () => { if (--dragDepth <= 0) { dragDepth = 0; document.getElementById("drop").classList.remove("show"); } });
+window.addEventListener("dragover", (e) => e.preventDefault());
+window.addEventListener("drop", (e) => {
+  e.preventDefault(); dragDepth = 0; document.getElementById("drop").classList.remove("show");
+  if (e.dataTransfer.files[0]) readWorkbook(e.dataTransfer.files[0]);
+});
+
+document.getElementById("search").addEventListener("input", (e) => {
+  state.query = e.target.value.trim();
+  state.selected = null;
+  drawMarkers();
+  renderList();
+});
+// marker colours come from CSS variables, so redraw when the colour scheme flips
+darkQuery.addEventListener("change", () => { drawMarkers(); if (state.selected === null) renderList(); });
+
+if (EMBEDDED) {
+  const rows = EMBEDDED.rows.map((r) => Object.fromEntries(EMBEDDED.columns.map((c, i) => [c, r[i]])));
+  load(EMBEDDED.columns, rows, `${DATASET_NAME} (ingebouwd)`);
+}
+</script>
+</body>
+</html>

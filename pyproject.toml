@@ -1,0 +1,49 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "school-register"
+version = "0.1.0"
+description = "Merge DUO, CRM and Planned Culture school data into one register for 's-Gravenhage, plus a map dashboard."
+requires-python = ">=3.11"
+dependencies = [
+    "pandas>=2.2",
+    "openpyxl>=3.1",
+    "requests>=2.31",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "yapf>=0.40",
+    "flake8>=7.0",
+    "flake8-docstrings>=1.7",
+    "mypy>=1.10",
+    "pandas-stubs>=2.2",
+    "types-requests>=2.31",
+    "types-openpyxl>=3.1",
+]
+
+[tool.setuptools]
+packages = ["school_register"]
+
+[tool.setuptools.package-data]
+school_register = ["dashboard_template.html"]
+
+[tool.yapf]
+based_on_style = "pep8"
+column_limit = 120
+
+[tool.mypy]
+python_version = "3.11"
+strict_optional = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+disallow_untyped_defs = true
+check_untyped_defs = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-ra"
