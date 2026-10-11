@@ -11,5 +11,6 @@ data/cache/
 __pycache__/
 *.py[cod]
 *.egg-info/
+build/
 .mypy_cache/
 .pytest_cache/

@@ -258,3 +258,11 @@ colleague.
   .venv/bin/flake8 school_register tests
   .venv/bin/mypy school_register tests
   ```
+
+---
+
+## Licence
+
+The code is released under the [MIT licence](LICENSE). The licence covers the code only. The data in `data/` and
+`output/` comes from public government sources (DUO, RIO, CBS and the BAG) and from our own CRM and Planned Culture
+files.
