@@ -246,6 +246,9 @@ colleague.
   - PDOK Locatieserver (BAG).
 - **RIO is only used to confirm or flag addresses, never to change them.** A RIO building of the same school within
   75 m of a BAG address counts as the same building (`rio_same_building_m`).
+- **Automatic checks on GitHub:** GitHub Actions (`.github/workflows/tests.yml`) runs the checks below on every pull
+  request and on every push to `main`. The tests run on Python 3.11, 3.12 and 3.13. Merge a pull request only when all
+  checks are green.
 - **Development setup and checks:**
 
   ```
@@ -255,3 +258,11 @@ colleague.
   .venv/bin/flake8 school_register tests
   .venv/bin/mypy school_register tests
   ```
+
+---
+
+## Licence
+
+The code is released under the [MIT licence](LICENSE). The licence covers the code only. The data in `data/` and
+`output/` comes from public government sources (DUO, RIO, CBS and the BAG) and from our own CRM and Planned Culture
+files.
