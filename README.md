@@ -4,8 +4,8 @@ This folder holds a list of every primary school location in Den Haag ('s-Graven
 list combines three files:
 
 - the official school list from DUO (the government's education agency);
-- our own CRM export;
-- our own Planned Culture export.
+- CRM data export;
+- Planned Culture data export.
 
 Every school building gets its own permanent number, called the **UNIEK_ID** (for example `DH-0042`), that you can use
 to track it.
@@ -264,5 +264,4 @@ colleague.
 ## Licence
 
 The code is released under the [MIT licence](LICENSE). The licence covers the code only. The data in `data/` and
-`output/` comes from public government sources (DUO, RIO, CBS and the BAG) and from our own CRM and Planned Culture
-files.
+`output/` comes from public government sources (DUO, RIO, CBS and the BAG) and from other sources.
