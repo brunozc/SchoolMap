@@ -1,0 +1,570 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scholen Den Haag</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root {
+    color-scheme: light;
+    --page: #f9f9f7;
+    --surface: #fcfcfb;
+    --surface-raised: #ffffff;
+    --text-primary: #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted: #6b6a65;
+    --hairline: #e1e0d9;
+    --border: rgba(11, 11, 11, 0.10);
+    --accent: #2a78d6;
+    --series-ok: #2a78d6;
+    --series-flag: #eb6834;
+    --ring: #ffffff;
+    --flag-wash: rgba(235, 104, 52, 0.10);
+    --hover-wash: rgba(11, 11, 11, 0.05);
+    --selected-wash: rgba(42, 120, 214, 0.10);
+    --tile-filter: none;
+    --seq-0: #a3a29b;
+    --seq-1: #86b6ef;
+    --seq-2: #3987e5;
+    --seq-3: #1c5cab;
+    --seq-4: #0d366b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --page: #0d0d0d;
+      --surface: #1a1a19;
+      --surface-raised: #222220;
+      --text-primary: #f0efec;
+      --text-secondary: #c3c2b7;
+      --text-muted: #9a9890;
+      --hairline: #2c2c2a;
+      --border: rgba(255, 255, 255, 0.10);
+      --accent: #3987e5;
+      --series-ok: #3987e5;
+      --series-flag: #d95926;
+      --ring: #1a1a19;
+      --flag-wash: rgba(217, 89, 38, 0.16);
+      --hover-wash: rgba(255, 255, 255, 0.06);
+      --selected-wash: rgba(57, 135, 229, 0.16);
+      --tile-filter: invert(1) hue-rotate(180deg) brightness(0.85) contrast(0.9);
+      --seq-0: #5f5e59;
+      --seq-1: #184f95;
+      --seq-2: #2a78d6;
+      --seq-3: #6da7ec;
+      --seq-4: #b7d3f6;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --page: #0d0d0d;
+    --surface: #1a1a19;
+    --surface-raised: #222220;
+    --text-primary: #f0efec;
+    --text-secondary: #c3c2b7;
+    --text-muted: #9a9890;
+    --hairline: #2c2c2a;
+    --border: rgba(255, 255, 255, 0.10);
+    --accent: #3987e5;
+    --series-ok: #3987e5;
+    --series-flag: #d95926;
+    --ring: #1a1a19;
+    --flag-wash: rgba(217, 89, 38, 0.16);
+    --hover-wash: rgba(255, 255, 255, 0.06);
+    --selected-wash: rgba(57, 135, 229, 0.16);
+    --tile-filter: invert(1) hue-rotate(180deg) brightness(0.85) contrast(0.9);
+    --seq-0: #5f5e59;
+    --seq-1: #184f95;
+    --seq-2: #2a78d6;
+    --seq-3: #6da7ec;
+    --seq-4: #b7d3f6;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--page);
+    color: var(--text-primary);
+    font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+    display: flex;
+    flex-direction: column;
+  }
+
+  header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 20px;
+    padding: 10px 16px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--hairline);
+  }
+  header h1 { font-size: 16px; font-weight: 600; margin: 0; }
+  .count { color: var(--text-secondary); }
+  .legend { display: flex; gap: 6px; flex-wrap: wrap; }
+  .legend button {
+    display: inline-flex; align-items: center; gap: 6px;
+    font: inherit; color: var(--text-primary);
+    background: transparent; border: 1px solid var(--border); border-radius: 999px;
+    padding: 3px 10px; cursor: pointer;
+  }
+  .legend button[aria-pressed="false"] { color: var(--text-muted); opacity: 0.6; }
+  .legend button:hover { background: var(--hover-wash); }
+  .swatch { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--series-ok); background: var(--series-ok); }
+  .swatch.flag { background: var(--series-flag); border: 2px dashed var(--text-primary); }
+  .spacer { flex: 1; }
+  .toolbar { flex-basis: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+  .toolbar-label { color: var(--text-secondary); font-size: 12px; }
+  .mode { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .mode button {
+    font: inherit; font-size: 13px; color: var(--text-primary); background: transparent;
+    border: 0; border-right: 1px solid var(--border); padding: 4px 10px; cursor: pointer;
+  }
+  .mode button:last-child { border-right: 0; }
+  .mode button:hover { background: var(--hover-wash); }
+  .mode button[aria-pressed="true"] { background: var(--selected-wash); font-weight: 600; }
+  .legend .chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 4px; font-size: 13px; }
+  .legend .note { color: var(--text-muted); font-size: 12px; }
+  .swatch.hollow { background: transparent; border: 2px solid var(--text-muted); }
+  .dataset { color: var(--text-muted); font-size: 12px; }
+  .btn {
+    font: inherit; font-weight: 500; color: #ffffff; background: var(--accent);
+    border: 0; border-radius: 8px; padding: 6px 12px; cursor: pointer;
+  }
+  .btn:hover { filter: brightness(1.08); }
+  .btn.ghost { color: var(--text-primary); background: transparent; border: 1px solid var(--border); }
+
+  main { flex: 1; display: flex; min-height: 0; }
+  #map { flex: 1; min-width: 0; background: var(--surface); }
+  aside {
+    width: 400px; max-width: 45vw;
+    display: flex; flex-direction: column; min-height: 0;
+    background: var(--surface); border-left: 1px solid var(--hairline);
+  }
+  .panel-head { padding: 12px 16px 8px; border-bottom: 1px solid var(--hairline); }
+  .search {
+    width: 100%; font: inherit; color: var(--text-primary);
+    background: var(--surface-raised); border: 1px solid var(--border); border-radius: 8px;
+    padding: 7px 10px;
+  }
+  .panel-body { flex: 1; overflow-y: auto; }
+
+  .list { list-style: none; margin: 0; padding: 4px 0; }
+  .list li {
+    display: grid; grid-template-columns: 14px 1fr; gap: 10px; align-items: start;
+    padding: 8px 16px; cursor: pointer; border-bottom: 1px solid var(--hairline);
+  }
+  .list li:hover { background: var(--hover-wash); }
+  .list li .dot { margin-top: 4px; }
+  .list .name { font-weight: 500; }
+  .list .sub { color: var(--text-secondary); font-size: 12px; }
+  .list .unmapped-title { padding: 12px 16px 4px; color: var(--text-muted); font-size: 12px; cursor: default; display: block; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--series-ok); }
+  .dot.flag { background: var(--series-flag); outline: 2px dashed var(--text-primary); outline-offset: 1px; }
+  .dot.none { background: transparent; border: 2px solid var(--text-muted); }
+
+  .detail { padding: 12px 16px 24px; }
+  .detail h2 { font-size: 16px; margin: 8px 0 2px; }
+  .detail .uid { color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+  .quality {
+    margin: 12px 0; padding: 10px 12px; border-radius: 8px;
+    background: var(--flag-wash); border-left: 3px solid var(--series-flag);
+  }
+  .quality strong { display: block; margin-bottom: 4px; }
+  .quality ul { margin: 0; padding-left: 18px; }
+  .certain { margin: 12px 0; color: var(--text-secondary); }
+  dl { display: grid; grid-template-columns: minmax(120px, 42%) 1fr; gap: 0; margin: 0; }
+  dt, dd { padding: 6px 0; border-bottom: 1px solid var(--hairline); margin: 0; }
+  dt { color: var(--text-secondary); font-size: 12px; padding-right: 10px; overflow-wrap: anywhere; }
+  dd { overflow-wrap: anywhere; }
+  dd.empty { color: var(--text-muted); }
+  dd a { color: var(--accent); }
+
+  .leaflet-tooltip { font: 13px/1.35 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .leaflet-container { font: inherit; }
+  .leaflet-tile-pane { filter: var(--tile-filter); }
+
+  #drop {
+    position: fixed; inset: 0; display: none; align-items: center; justify-content: center;
+    background: rgba(42, 120, 214, 0.18); border: 3px dashed var(--accent);
+    font-size: 18px; font-weight: 600; color: var(--text-primary); z-index: 2000; pointer-events: none;
+  }
+  #drop.show { display: flex; }
+  #toast {
+    position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%);
+    background: var(--text-primary); color: var(--surface); padding: 8px 14px; border-radius: 8px;
+    display: none; z-index: 2001; max-width: calc(100vw - 32px);
+  }
+
+  @media (max-width: 720px) {
+    main { flex-direction: column; }
+    #map { flex: none; height: 55vh; }
+    aside { width: 100%; max-width: none; flex: 1; border-left: 0; border-top: 1px solid var(--hairline); }
+    header { gap: 8px 12px; }
+    .spacer { display: none; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Scholen Den Haag</h1>
+  <span class="count" id="count"></span>
+  <span class="spacer"></span>
+  <span class="dataset" id="dataset"></span>
+  <input type="file" id="file" accept=".xlsx,.xls,.csv" hidden>
+  <button type="button" class="btn" id="open">Open dataset (.xlsx)</button>
+  <div class="toolbar">
+    <span class="toolbar-label" id="mode-label">Kleur</span>
+    <div class="mode" id="mode" role="group" aria-labelledby="mode-label"></div>
+    <div class="legend" id="legend"></div>
+  </div>
+</header>
+<main>
+  <div id="map" role="region" aria-label="Kaart met scholen"></div>
+  <aside>
+    <div class="panel-head">
+      <input class="search" id="search" type="search" placeholder="Zoek school, adres, code of wijk…" aria-label="Zoek school">
+    </div>
+    <div class="panel-body" id="panel"></div>
+  </aside>
+</main>
+<div id="drop">Laat het xlsx-bestand los om het te laden</div>
+<div id="toast" role="status"></div>
+
+<script>
+const EMBEDDED = /*__DATA__*/null;
+const DATASET_NAME = "__DATASET_NAME__";
+const QUALITY = "DATA_KWALITEIT";
+const LAT = "LATITUDE", LON = "LONGITUDE";
+const NAME = "VESTIGINGSNAAM", UID = "UNIEK_ID";
+
+const SCORE_PREFIX = "ACHTERSTANDSSCORE";
+const QUALITY_MODE = "quality";
+
+const state = {
+  columns: [], rows: [], show: { ok: true, flag: true }, query: "", selected: null, source: "",
+  mode: QUALITY_MODE, breaks: {},
+};
+const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+// grey BRT Achtergrondkaart from PDOK (Kadaster): free, no API key, and it also loads when the page is opened from
+// disk; the grey style keeps the colour for the school markers, dark mode inverts the tiles with a CSS filter
+const map = L.map("map", { zoomControl: true, preferCanvas: false }).setView([52.07, 4.30], 12);
+L.tileLayer("https://service.pdok.nl/brt/achtergrondkaart/wmts/v2_0/grijs/EPSG:3857/{z}/{x}/{y}.png", {
+  attribution: 'Kaart: <a href="https://www.pdok.nl/introductie/-/article/basisregistratie-topografie-brt-topnl">BRT Achtergrondkaart</a> &copy; <a href="https://www.kadaster.nl">Kadaster</a>',
+  minZoom: 6,
+  maxZoom: 19,
+}).addTo(map);
+const darkQuery = window.matchMedia("(prefers-color-scheme: dark)");
+const markerLayer = L.layerGroup().addTo(map);
+let markers = [];
+
+function isFlagged(row) { return String(row[QUALITY] ?? "").trim() !== ""; }
+function coords(row) {
+  const lat = parseFloat(String(row[LAT] ?? "").replace(",", "."));
+  const lon = parseFloat(String(row[LON] ?? "").replace(",", "."));
+  return Number.isFinite(lat) && Number.isFinite(lon) && lat !== 0 && lon !== 0 ? [lat, lon] : null;
+}
+function addressOf(row) {
+  return [row.STRAATNAAM, row["HUISNUMMER-TOEVOEGING"]].filter(Boolean).join(" ") +
+    (row.POSTCODE ? `, ${row.POSTCODE}` : "");
+}
+// the quality filter only applies while the map is coloured by data quality
+function visible(row) { return state.mode !== QUALITY_MODE || (isFlagged(row) ? state.show.flag : state.show.ok); }
+
+// achterstandsscores: a neutral grey for 0 (below the CBS threshold, so no budget: a different kind of value, not the
+// low end of the scale) and four blue quartile classes for the positive scores; each year gets its own classes because
+// the 2026 method uses a different scale
+function scoreColumns() { return state.columns.filter((c) => c.toUpperCase().startsWith(SCORE_PREFIX)); }
+function scoreLabel(col) {
+  const rest = col.slice(SCORE_PREFIX.length).replace(/^_/, "").split("_");
+  const extra = rest.slice(1).map((w) => w.toLowerCase()).join(" ");
+  return `Achterstandsscore ${rest[0]}${extra ? ` (${extra})` : ""}`;
+}
+function scoreValue(row, col) {
+  let text = String(row[col] ?? "").trim();
+  if (!text) return null;
+  if (text.includes(",") && !text.includes(".")) text = text.replace(",", ".");
+  const value = parseFloat(text);
+  return Number.isFinite(value) ? value : null;
+}
+function niceRound(value) {
+  if (value <= 0) return 0;
+  const step = Math.pow(10, Math.floor(Math.log10(value)) - 1);
+  return Math.round(value / step) * step;
+}
+function computeBreaks(col) {
+  const positive = state.rows.map((r) => scoreValue(r, col)).filter((v) => v !== null && v > 0).sort((a, b) => a - b);
+  if (positive.length < 4) return positive.length ? [positive[0], positive[0], positive[0]] : [0, 0, 0];
+  const at = (q) => positive[Math.min(positive.length - 1, Math.floor(q * positive.length))];
+  const exact = [at(0.25), at(0.5), at(0.75)];
+  const rounded = exact.map(niceRound);
+  return rounded[0] > 0 && rounded[0] < rounded[1] && rounded[1] < rounded[2] ? rounded : exact;
+}
+function scoreClass(value, breaks) {
+  if (value === null) return null;
+  if (value <= 0) return 0;
+  return value <= breaks[0] ? 1 : value <= breaks[1] ? 2 : value <= breaks[2] ? 3 : 4;
+}
+const formatNumber = (value, digits) => value.toLocaleString("nl-NL", { minimumFractionDigits: digits, maximumFractionDigits: digits });
+function scoreText(row, col) {
+  const value = scoreValue(row, col);
+  return value === null ? "geen score" : formatNumber(value, 2);
+}
+function rowColor(row) {
+  if (state.mode === QUALITY_MODE) return css(isFlagged(row) ? "--series-flag" : "--series-ok");
+  const cls = scoreClass(scoreValue(row, state.mode), state.breaks[state.mode]);
+  return cls === null ? null : css(`--seq-${cls}`);
+}
+function matches(row) {
+  if (!state.query) return true;
+  const q = state.query.toLowerCase();
+  return state.columns.some((c) => String(row[c] ?? "").toLowerCase().includes(q));
+}
+function esc(text) {
+  return String(text ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+}
+
+function markerStyle(row, selected) {
+  if (state.mode !== QUALITY_MODE) {
+    const fill = rowColor(row);
+    // no score (not a DUO location): a hollow ring, so it never reads as a low score
+    if (fill === null) {
+      return { radius: selected ? 9 : 5, color: selected ? css("--text-primary") : css("--text-muted"),
+               weight: selected ? 3 : 2, dashArray: null, fillOpacity: 0 };
+    }
+    return { radius: selected ? 10 : 7, color: selected ? css("--text-primary") : css("--ring"),
+             weight: selected ? 3 : 2, dashArray: null, fillColor: fill, fillOpacity: 0.95 };
+  }
+  const flag = isFlagged(row);
+  return {
+    radius: selected ? 10 : 7,
+    color: selected ? css("--text-primary") : (flag ? css("--text-primary") : css("--ring")),
+    weight: selected ? 3 : 2,
+    dashArray: flag && !selected ? "3 3" : null,
+    fillColor: flag ? css("--series-flag") : css("--series-ok"),
+    fillOpacity: 0.9,
+  };
+}
+
+function drawMarkers() {
+  markerLayer.clearLayers();
+  markers = [];
+  state.rows.forEach((row, index) => {
+    const ll = coords(row);
+    if (!ll || !visible(row) || !matches(row)) return;
+    const marker = L.circleMarker(ll, markerStyle(row, index === state.selected));
+    const scoreLine = state.mode === QUALITY_MODE ? "" : `<br>${esc(scoreLabel(state.mode))}: ${esc(scoreText(row, state.mode))}`;
+    marker.bindTooltip(`<strong>${esc(row[NAME])}</strong><br>${esc(addressOf(row))}${scoreLine}`,
+      { direction: "top", offset: [0, -6] });
+    marker.on("click", () => select(index, false));
+    marker.rowIndex = index;
+    marker.addTo(markerLayer);
+    markers.push(marker);
+  });
+  markers.filter((m) => m.rowIndex === state.selected).forEach((m) => m.bringToFront());
+}
+
+function renderCount() {
+  const total = state.rows.length;
+  const flagged = state.rows.filter(isFlagged).length;
+  const unmapped = state.rows.filter((r) => !coords(r)).length;
+  document.getElementById("count").textContent =
+    `${total} locaties · ${flagged} met opmerking` + (unmapped ? ` · ${unmapped} niet op kaart` : "");
+  document.getElementById("dataset").textContent = state.source;
+}
+
+function renderList() {
+  const panel = document.getElementById("panel");
+  const shown = state.rows.map((row, index) => ({ row, index })).filter(({ row }) => visible(row) && matches(row));
+  const mapped = shown.filter(({ row }) => coords(row));
+  const unmapped = shown.filter(({ row }) => !coords(row));
+  const item = ({ row, index }) => {
+    let dot = `<span class="dot ${!coords(row) ? "none" : (isFlagged(row) ? "flag" : "")}" aria-hidden="true"></span>`;
+    let extra = "";
+    if (state.mode !== QUALITY_MODE) {
+      const fill = rowColor(row);
+      dot = fill === null ? `<span class="dot none" aria-hidden="true"></span>`
+                          : `<span class="dot" style="background:${fill}" aria-hidden="true"></span>`;
+      extra = ` · score ${esc(scoreText(row, state.mode))}`;
+    }
+    return `<li data-index="${index}" tabindex="0">${dot}
+      <span><span class="name">${esc(row[NAME])}</span><br><span class="sub">${esc(row[UID])} · ${esc(addressOf(row))}${extra}</span></span></li>`;
+  };
+  panel.innerHTML = shown.length === 0
+    ? `<p class="detail">Geen scholen gevonden.</p>`
+    : `<ul class="list">${mapped.map(item).join("")}` +
+      (unmapped.length ? `<li class="unmapped-title">Niet op kaart (geen coördinaten)</li>${unmapped.map(item).join("")}` : "") +
+      `</ul>`;
+  panel.querySelectorAll("li[data-index]").forEach((li) => {
+    const open = () => select(Number(li.dataset.index), true);
+    li.addEventListener("click", open);
+    li.addEventListener("keydown", (e) => { if (e.key === "Enter") open(); });
+  });
+}
+
+function renderDetail(index) {
+  const row = state.rows[index];
+  const notes = String(row[QUALITY] ?? "").split(";").map((n) => n.trim()).filter(Boolean);
+  const fields = state.columns.map((col) => {
+    let value = row[col];
+    const empty = value === undefined || value === null || String(value).trim() === "";
+    let html = empty ? "—" : esc(value);
+    if (!empty && col.toUpperCase().startsWith(SCORE_PREFIX) && scoreValue(row, col) !== null) {
+      html = esc(formatNumber(scoreValue(row, col), 2));
+    }
+    if (!empty && col === "INTERNETADRES") {
+      const url = /^https?:\/\//i.test(value) ? value : `https://${value}`;
+      html = `<a href="${esc(url)}" target="_blank" rel="noopener">${esc(value)}</a>`;
+    }
+    return `<dt>${esc(col)}</dt><dd class="${empty ? "empty" : ""}">${html}</dd>`;
+  }).join("");
+  document.getElementById("panel").innerHTML = `<div class="detail">
+    <button type="button" class="btn ghost" id="back">← Alle scholen</button>
+    <h2>${esc(row[NAME])}</h2>
+    <div class="uid">${esc(row[UID])}</div>
+    ${notes.length
+      ? `<div class="quality"><strong>Let op: datakwaliteit</strong><ul>${notes.map((n) => `<li>${esc(n)}</li>`).join("")}</ul></div>`
+      : `<p class="certain">Gegevens uit DUO, geen tegenstrijdigheden gevonden.</p>`}
+    <dl>${fields}</dl></div>`;
+  document.getElementById("back").addEventListener("click", () => { state.selected = null; drawMarkers(); renderList(); });
+  document.getElementById("panel").scrollTop = 0;
+}
+
+function select(index, pan) {
+  state.selected = index;
+  drawMarkers();
+  renderDetail(index);
+  const ll = coords(state.rows[index]);
+  if (pan && ll) map.setView(ll, Math.max(map.getZoom(), 15));
+}
+
+function renderLegend() {
+  const legend = document.getElementById("legend");
+  if (state.mode === QUALITY_MODE) {
+    legend.setAttribute("role", "group");
+    legend.setAttribute("aria-label", "Filter op datakwaliteit");
+    legend.innerHTML = `
+      <button type="button" data-key="ok" aria-pressed="${state.show.ok}"><span class="swatch"></span>DUO, zeker</button>
+      <button type="button" data-key="flag" aria-pressed="${state.show.flag}"><span class="swatch flag"></span>Let op: zie DATA_KWALITEIT</button>`;
+    legend.querySelectorAll("button").forEach((button) => button.addEventListener("click", () => {
+      const key = button.dataset.key;
+      state.show[key] = !state.show[key];
+      button.setAttribute("aria-pressed", String(state.show[key]));
+      drawMarkers();
+      if (state.selected === null) renderList();
+    }));
+    return;
+  }
+  const breaks = state.breaks[state.mode];
+  const digits = breaks[2] >= 100 ? 0 : 1;
+  const f = (v) => formatNumber(v, digits);
+  const labels = ["0 (onder drempel)", `tot ${f(breaks[0])}`, `${f(breaks[0])} – ${f(breaks[1])}`,
+                  `${f(breaks[1])} – ${f(breaks[2])}`, `meer dan ${f(breaks[2])}`];
+  legend.setAttribute("role", "list");
+  legend.setAttribute("aria-label", `Legenda ${scoreLabel(state.mode)}`);
+  legend.innerHTML = labels.map((label, i) =>
+    `<span class="chip" role="listitem"><span class="swatch" style="background:var(--seq-${i});border-color:var(--seq-${i})"></span>${esc(label)}</span>`
+  ).join("") +
+    `<span class="chip" role="listitem"><span class="swatch hollow"></span>Geen score</span>` +
+    `<span class="note">${state.mode.toUpperCase().includes("VOORLOPIG")
+      ? "Voorlopig, herijkte CBS-methode: andere schaal dan 2025."
+      : "CBS, met drempel; klassen = kwartielen van de scores boven 0."}</span>`;
+}
+
+function renderModes() {
+  const modes = [[QUALITY_MODE, "Datakwaliteit"], ...scoreColumns().map((c) => [c, scoreLabel(c).replace("Achterstandsscore", "Score")])];
+  if (!modes.some(([key]) => key === state.mode)) state.mode = QUALITY_MODE;
+  const box = document.getElementById("mode");
+  box.innerHTML = modes.map(([key, label]) =>
+    `<button type="button" data-mode="${esc(key)}" aria-pressed="${key === state.mode}">${esc(label)}</button>`).join("");
+  box.querySelectorAll("button").forEach((button) => button.addEventListener("click", () => {
+    state.mode = button.dataset.mode;
+    box.querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b === button)));
+    renderLegend();
+    drawMarkers();
+    if (state.selected === null) renderList();
+  }));
+}
+
+function load(columns, rows, source) {
+  state.columns = columns;
+  state.rows = rows;
+  state.source = source;
+  state.selected = null;
+  state.breaks = Object.fromEntries(scoreColumns().map((c) => [c, computeBreaks(c)]));
+  renderModes();
+  renderLegend();
+  renderCount();
+  drawMarkers();
+  renderList();
+  const points = rows.map(coords).filter(Boolean);
+  // no animation, so a school selected right after loading is not overridden by the end of the zoom-to-fit
+  if (points.length) map.fitBounds(points, { padding: [24, 24], maxZoom: 15, animate: false });
+}
+
+function toast(text) {
+  const el = document.getElementById("toast");
+  el.textContent = text;
+  el.style.display = "block";
+  clearTimeout(toast.timer);
+  toast.timer = setTimeout(() => { el.style.display = "none"; }, 5000);
+}
+
+// reading a newer copy of the register (button or drag-and-drop)
+function readWorkbook(file) {
+  if (typeof XLSX === "undefined") { toast("De xlsx-lezer kon niet laden (geen internet?)."); return; }
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const workbook = XLSX.read(new Uint8Array(reader.result), { type: "array" });
+      const sheetName = workbook.SheetNames.includes("Scholen") ? "Scholen" : workbook.SheetNames[0];
+      const sheet = workbook.Sheets[sheetName];
+      const table = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "", raw: false });
+      const columns = (table[0] || []).map((c) => String(c).trim()).filter(Boolean);
+      if (!columns.includes(LAT) || !columns.includes(LON)) {
+        toast(`Kolommen ${LAT} en ${LON} ontbreken in blad "${sheetName}".`);
+        return;
+      }
+      const rows = table.slice(1)
+        .filter((r) => r.some((v) => String(v).trim() !== ""))
+        .map((r) => Object.fromEntries(columns.map((c, i) => [c, r[i] ?? ""])));
+      load(columns, rows, `${file.name} (blad ${sheetName})`);
+      toast(`${rows.length} scholen geladen uit ${file.name}.`);
+    } catch (err) {
+      toast(`Kon ${file.name} niet lezen: ${err.message}`);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+document.getElementById("open").addEventListener("click", () => document.getElementById("file").click());
+document.getElementById("file").addEventListener("change", (e) => { if (e.target.files[0]) readWorkbook(e.target.files[0]); e.target.value = ""; });
+let dragDepth = 0;
+window.addEventListener("dragenter", (e) => { e.preventDefault(); dragDepth++; document.getElementById("drop").classList.add("show"); });
+window.addEventListener("dragleave", () => { if (--dragDepth <= 0) { dragDepth = 0; document.getElementById("drop").classList.remove("show"); } });
+window.addEventListener("dragover", (e) => e.preventDefault());
+window.addEventListener("drop", (e) => {
+  e.preventDefault(); dragDepth = 0; document.getElementById("drop").classList.remove("show");
+  if (e.dataTransfer.files[0]) readWorkbook(e.dataTransfer.files[0]);
+});
+
+document.getElementById("search").addEventListener("input", (e) => {
+  state.query = e.target.value.trim();
+  state.selected = null;
+  drawMarkers();
+  renderList();
+});
+// marker colours come from CSS variables, so redraw when the colour scheme flips
+darkQuery.addEventListener("change", () => { drawMarkers(); if (state.selected === null) renderList(); });
+
+if (EMBEDDED) {
+  const rows = EMBEDDED.rows.map((r) => Object.fromEntries(EMBEDDED.columns.map((c, i) => [c, r[i]])));
+  load(EMBEDDED.columns, rows, `${DATASET_NAME} (ingebouwd)`);
+}
+</script>
+</body>
+</html>
